@@ -27,17 +27,19 @@ func main() {
 
 	cfg, err := config.LoadConfig(ctx, cfgFilePath)
 	if err != nil {
-		logrus.Fatalf("failed to load configuration: %w", err)
+		logrus.Fatalf("failed to load configuration: %s", err)
 	}
+	logrus.Infof("configuration loaded successfully")
 
 	providers, err := config.NewProviders(ctx, *cfg)
 	if err != nil {
-		logrus.Fatalf("failed to prepare providers: %w", err)
+		logrus.Fatalf("failed to prepare providers: %s", err)
 	}
+	logrus.Infof("application providers prepared successfully")
 
 	protoValidator, err := protovalidate.New()
 	if err != nil {
-		logrus.Fatalf("failed to prepare protovalidator: %w", err)
+		logrus.Fatalf("failed to prepare protovalidator: %s", err)
 	}
 
 	interceptors := connect.WithInterceptors(
@@ -63,7 +65,9 @@ func main() {
 	// Create the server
 	srv := server.Create(cfg.ListenAddress, cors.Wrap(corsConfig, serveMux))
 
+	logrus.Infof("HTTP/2 server (h2c) prepared successfully, startin to listen ...")
+
 	if err := server.Serve(ctx, srv); err != nil {
-		logrus.Fatalf("failed to serve: %w", err)
+		logrus.Fatalf("failed to serve: %s", err)
 	}
 }
