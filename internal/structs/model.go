@@ -27,6 +27,8 @@ type CallLog struct {
 	DateStr string `json:"datestr" bson:"datestr,omitempty"`
 	// Agent is the agent that participated in the call
 	Agent string `json:"agent,omitempty" bson:"agent,omitempty"`
+	// AgentUserId is the ID of the user that accepted the call.
+	AgentUserId string `json:"userId,omitempty" bson:"userId,omitempty"`
 	// CustomerID is the ID of the customer that participated in the call.
 	CustomerID string `json:"customerID,omitempty" bson:"customerID,omitempty"`
 	// CustomerSource is the source of the customer record.
@@ -46,10 +48,11 @@ func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
 		ReceivedAt:     timestamppb.New(log.Date),
 		Duration:       durationpb.New(time.Duration(log.DurationSeconds) * time.Second),
 		CallType:       log.CallType,
-		AgentUserId:    log.Agent,
+		AgentUserId:    log.AgentUserId,
 		CustomerId:     log.CustomerID,
 		CustomerSource: log.CustomerSource,
 		Error:          log.Error,
 		TransferTarget: log.TransferTarget,
+		AcceptedAgent:  log.Agent,
 	}
 }

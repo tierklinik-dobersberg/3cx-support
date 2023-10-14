@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
@@ -92,12 +94,44 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 	}
 
 	record.Date = date
+	record.AgentUserId = svc.getUserIdForAgent(ctx, record.Agent)
 
 	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
 		return nil, err
 	}
 
 	return connect.NewResponse(&emptypb.Empty{}), nil
+}
+
+func (svc *CallService) getUserIdForAgent(ctx context.Context, agent string) string {
+
+	profiles, err := svc.Users.ListUsers(ctx, connect.NewRequest(&idmv1.ListUsersRequest{
+		FieldMask: &fieldmaskpb.FieldMask{
+			Paths: []string{"user.avatar"},
+		},
+		ExcludeFields: true,
+	}))
+	if err != nil {
+		logrus.Errorf("failed to fetch users from idm service: %s", err)
+	}
+
+	for _, p := range profiles.Msg.Users {
+		if agent == p.User.GetPrimaryPhoneNumber().GetNumber() {
+			return p.User.Id
+		}
+
+		if p.User.GetExtra() != nil {
+			if agent == p.User.GetExtra().GetFields()["phoneExtension"].GetStringValue() {
+				return p.User.Id
+			}
+
+			if agent == p.User.GetExtra().GetFields()["emergencyExtension"].GetStringValue() {
+				return p.User.Id
+			}
+		}
+	}
+
+	return ""
 }
 
 func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3cxv1.GetOnCallRequest]) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
@@ -118,8 +152,11 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 
 	if overwrite != nil && !req.Msg.IgnoreOverwrites {
 		target := overwrite.PhoneNumber
+		var profile *idmv1.Profile
+
 		if overwrite.UserID != "" {
-			profile, err := svc.fetchUserProfile(ctx, overwrite.UserID)
+			var err error
+			profile, err = svc.fetchUserProfile(ctx, overwrite.UserID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch user with id %q: %w", overwrite.UserID, err)
 			}
@@ -132,11 +169,12 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		}
 
 		res := &pbx3cxv1.GetOnCallResponse{
-			Until:       timestamppb.New(overwrite.To),
 			IsOverwrite: true,
 			OnCall: []*pbx3cxv1.OnCall{
 				{
 					TransferTarget: target,
+					Profile:        profile,
+					Until:          timestamppb.New(overwrite.To),
 				},
 			},
 		}
@@ -150,7 +188,13 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		RosterTypeName: svc.Config.RosterTypeName,
 	}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get working staff from RosterService: %w", err)
+	}
+
+	log.L(ctx).Infof("received response for RosterService.GetWorkingStaff: userIds=%#v rosterIds=%#v", workingStaff.Msg.UserIds, workingStaff.Msg.RosterId)
+
+	if len(workingStaff.Msg.UserIds) == 0 {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no roster defined for %s", dateTime))
 	}
 
 	res := &pbx3cxv1.GetOnCallResponse{
@@ -165,12 +209,26 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 			continue
 		}
 
+		var until time.Time
+		for _, shift := range workingStaff.Msg.CurrentShifts {
+			if !slices.Contains(shift.AssignedUserIds, userId) {
+				continue
+			}
+
+			if shift.To.AsTime().Before(until) || until.IsZero() {
+				until = shift.To.AsTime()
+			}
+		}
+
 		target := getUserTransferTarget(profile)
 		if target != "" {
 			res.OnCall = append(res.OnCall, &pbx3cxv1.OnCall{
-				// Profile: profile,
+				Profile:        profile,
 				TransferTarget: target,
+				Until:          timestamppb.New(until),
 			})
+		} else {
+			log.L(ctx).Warnf("user %q (id=%q) marked as on-call but no transfer target available", profile.User.Username, userId)
 		}
 	}
 
