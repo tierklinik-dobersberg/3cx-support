@@ -22,6 +22,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -161,7 +162,7 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 				return nil, fmt.Errorf("failed to fetch user with id %q: %w", overwrite.UserID, err)
 			}
 
-			target = getUserTransferTarget(profile)
+			target = svc.getUserTransferTarget(profile)
 		}
 
 		if target == "" {
@@ -220,7 +221,7 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 			}
 		}
 
-		target := getUserTransferTarget(profile)
+		target := svc.getUserTransferTarget(profile)
 		if target != "" {
 			res.OnCall = append(res.OnCall, &pbx3cxv1.OnCall{
 				Profile:        profile,
@@ -442,11 +443,23 @@ func (svc *CallService) fetchUserProfile(ctx context.Context, userId string) (*i
 	return profile.Msg.GetProfile(), nil
 }
 
-func getUserTransferTarget(profile *idmv1.Profile) string {
+func (svc *CallService) getUserTransferTarget(profile *idmv1.Profile) string {
 	if extrapb := profile.GetUser().GetExtra(); extrapb != nil {
-		phoneExtension, ok := extrapb.Fields["phoneExtension"]
-		if ok && phoneExtension.GetStringValue() != "" {
-			return phoneExtension.GetStringValue()
+		for _, key := range svc.Config.UserPhoneExtensionKeys {
+			phoneExtension, ok := extrapb.Fields[key]
+
+			if !ok {
+				continue
+			}
+
+			switch v := phoneExtension.Kind.(type) {
+			case *structpb.Value_StringValue:
+				return v.StringValue
+			case *structpb.Value_NumberValue:
+				return fmt.Sprintf("%d", int(v.NumberValue))
+			default:
+				logrus.Warnf("unsupported value type %T for phoneExtension key %q", phoneExtension.Kind, key)
+			}
 		}
 	}
 

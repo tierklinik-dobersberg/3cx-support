@@ -13,14 +13,15 @@ import (
 )
 
 type Config struct {
-	IdmURL         string   `env:"IDM_URL" json:"idmURL"`
-	RosterdURL     string   `env:"ROSTERD_URL" json:"rosterdUrl"`
-	Country        string   `env:"COUNTRY,default=AT" json:"country"`
-	MongoURL       string   `env:"MONGO_URL" json:"mongoUrl"`
-	Database       string   `env:"DATABASE" json:"database"`
-	AllowedOrigins []string `env:"ALLOWED_ORIGINS" json:"allowedOrigins"`
-	ListenAddress  string   `env:"LISTEN" json:"listenAddress"`
-	RosterTypeName string   `env:"ROSTER_TYPE" json:"rosterType"`
+	IdmURL                 string   `env:"IDM_URL" json:"idmURL"`
+	RosterdURL             string   `env:"ROSTERD_URL" json:"rosterdUrl"`
+	Country                string   `env:"COUNTRY,default=AT" json:"country"`
+	MongoURL               string   `env:"MONGO_URL" json:"mongoUrl"`
+	Database               string   `env:"DATABASE" json:"database"`
+	AllowedOrigins         []string `env:"ALLOWED_ORIGINS" json:"allowedOrigins"`
+	ListenAddress          string   `env:"LISTEN" json:"listenAddress"`
+	RosterTypeName         string   `env:"ROSTER_TYPE" json:"rosterType"`
+	UserPhoneExtensionKeys []string `env:"PHONE_EXTENSION_KEYS" json:"phoneExtensionKeys"`
 }
 
 func LoadConfig(ctx context.Context, path string) (*Config, error) {
