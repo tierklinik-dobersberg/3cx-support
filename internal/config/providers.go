@@ -16,6 +16,7 @@ import (
 type Providers struct {
 	Roster rosterv1connect.RosterServiceClient
 	Users  idmv1connect.UserServiceClient
+	Roles  idmv1connect.RoleServiceClient
 
 	CallLogDB   database.Database
 	OverwriteDB oncalloverwrite.Database
@@ -49,6 +50,7 @@ func NewProviders(ctx context.Context, cfg Config) (*Providers, error) {
 	p := &Providers{
 		Roster:      rosterv1connect.NewRosterServiceClient(httpClient, cfg.RosterdURL),
 		Users:       idmv1connect.NewUserServiceClient(httpClient, cfg.IdmURL),
+		Roles:       idmv1connect.NewRoleServiceClient(httpClient, cfg.IdmURL),
 		Config:      cfg,
 		CallLogDB:   callogDB,
 		OverwriteDB: overwriteDB,

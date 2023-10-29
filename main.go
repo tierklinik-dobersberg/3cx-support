@@ -11,10 +11,12 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/services"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
+	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/cors"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"github.com/tierklinik-dobersberg/apis/pkg/server"
 	"github.com/tierklinik-dobersberg/apis/pkg/validator"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 func main() {
@@ -42,8 +44,14 @@ func main() {
 		logrus.Fatalf("failed to prepare protovalidator: %s", err)
 	}
 
+	authInterceptor := auth.NewAuthAnnotationInterceptor(
+		protoregistry.GlobalFiles,
+		auth.NewIDMRoleResolver(providers.Roles),
+		auth.RemoteHeaderExtractor)
+
 	interceptors := connect.WithInterceptors(
 		log.NewLoggingInterceptor(),
+		authInterceptor,
 		validator.NewInterceptor(protoValidator),
 	)
 
