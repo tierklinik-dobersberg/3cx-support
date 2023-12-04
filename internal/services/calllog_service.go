@@ -237,6 +237,9 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		return nil, fmt.Errorf("failed to determine on-call users")
 	}
 
+	// Set the primary transfer-target from the first on-call user
+	res.PrimaryTransferTarget = res.OnCall[0].TransferTarget
+
 	return connect.NewResponse(res), nil
 }
 
