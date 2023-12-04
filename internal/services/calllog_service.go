@@ -135,6 +135,19 @@ func (svc *CallService) getUserIdForAgent(ctx context.Context, agent string) str
 	return ""
 }
 
+func (svc *CallService) handleOnCallError(ctx context.Context, err error) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
+	// return the fail-over transfer target if one is specified
+	if ft := svc.Config.FailoverTransferTarget; ft != "" {
+		log.L(ctx).Errorf("failed to get on-call response, returning failover target %q: %s", ft, err)
+
+		return connect.NewResponse(&pbx3cxv1.GetOnCallResponse{
+			PrimaryTransferTarget: ft,
+		}), nil
+	}
+
+	return nil, err
+}
+
 func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3cxv1.GetOnCallRequest]) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
 	dateTime := time.Now()
 
@@ -142,13 +155,13 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		var err error
 		dateTime, err = time.Parse(time.RFC3339, req.Msg.Date)
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for date: %q: %w", req.Msg.Date, err))
+			return svc.handleOnCallError(ctx, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for date: %q: %w", req.Msg.Date, err)))
 		}
 	}
 
 	overwrite, err := svc.OverwriteDB.GetActiveOverwrite(ctx, dateTime)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, err
+		return svc.handleOnCallError(ctx, err)
 	}
 
 	if overwrite != nil && !req.Msg.IgnoreOverwrites {
@@ -159,14 +172,14 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 			var err error
 			profile, err = svc.fetchUserProfile(ctx, overwrite.UserID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to fetch user with id %q: %w", overwrite.UserID, err)
+				return svc.handleOnCallError(ctx, fmt.Errorf("failed to fetch user with id %q: %w", overwrite.UserID, err))
 			}
 
 			target = svc.getUserTransferTarget(profile)
 		}
 
 		if target == "" {
-			return nil, fmt.Errorf("failed to get transfer target for overwrite")
+			return svc.handleOnCallError(ctx, fmt.Errorf("failed to get transfer target for overwrite"))
 		}
 
 		res := &pbx3cxv1.GetOnCallResponse{
@@ -189,13 +202,13 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		RosterTypeName: svc.Config.RosterTypeName,
 	}))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get working staff from RosterService: %w", err)
+		return svc.handleOnCallError(ctx, fmt.Errorf("failed to get working staff from RosterService: %w", err))
 	}
 
 	log.L(ctx).Infof("received response for RosterService.GetWorkingStaff: userIds=%#v rosterIds=%#v", workingStaff.Msg.UserIds, workingStaff.Msg.RosterId)
 
 	if len(workingStaff.Msg.UserIds) == 0 {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no roster defined for %s", dateTime))
+		return svc.handleOnCallError(ctx, connect.NewError(connect.CodeNotFound, fmt.Errorf("no roster defined for %s", dateTime)))
 	}
 
 	res := &pbx3cxv1.GetOnCallResponse{
@@ -234,7 +247,7 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 	}
 
 	if len(res.OnCall) == 0 {
-		return nil, fmt.Errorf("failed to determine on-call users")
+		return svc.handleOnCallError(ctx, fmt.Errorf("failed to determine on-call users"))
 	}
 
 	// Set the primary transfer-target from the first on-call user

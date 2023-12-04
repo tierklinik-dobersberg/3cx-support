@@ -22,6 +22,7 @@ type Config struct {
 	ListenAddress          string   `env:"LISTEN" json:"listenAddress"`
 	RosterTypeName         string   `env:"ROSTER_TYPE" json:"rosterType"`
 	UserPhoneExtensionKeys []string `env:"PHONE_EXTENSION_KEYS" json:"phoneExtensionKeys"`
+	FailoverTransferTarget string   `env:"FAILOVER_TRANSFER_TARGET" json:"failoverTransferTarget"`
 }
 
 func LoadConfig(ctx context.Context, path string) (*Config, error) {
