@@ -58,12 +58,14 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		if err == nil {
 			record.Error = parsedBool
 		} else {
-			log.L(req.Context()).Errorf("failed to parse error parameter %v: %w", isError, err)
+			log.L(req.Context()).Errorf("failed to parse error parameter %v: %s", isError, err)
 		}
 	}
 
 	if err := svc.CallLogDB.CreateUnidentified(req.Context(), record); err != nil {
-		log.L(req.Context()).Errorf("failed to create unidentified call-log entry: %w", err)
+		log.L(req.Context()).Errorf("failed to create unidentified call-log entry: %s", err)
+	} else {
+		log.L(req.Context()).Infof("successfully created unidentified call log entry: %#v", record)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
