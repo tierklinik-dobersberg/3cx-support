@@ -70,8 +70,19 @@ func main() {
 	path, handler := pbx3cxv1connect.NewCallServiceHandler(callService, interceptors)
 	serveMux.Handle(path, handler)
 
+	loggingHandler := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logrus.Infof("received request: %s %s%s", r.Method, r.Host, r.URL.String())
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	// Create the server
-	srv := server.Create(cfg.ListenAddress, cors.Wrap(corsConfig, serveMux))
+	srv, err := server.CreateWithOptions(cfg.ListenAddress, loggingHandler(serveMux), server.WithCORS(corsConfig))
+	if err != nil {
+		logrus.Fatalf("failed to setup server: %s", err)
+	}
 
 	logrus.Infof("HTTP/2 server (h2c) prepared successfully, startin to listen ...")
 
