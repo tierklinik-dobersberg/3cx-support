@@ -35,8 +35,8 @@ func (q *SearchQuery) Before(d time.Time) *SearchQuery {
 // Between matches all records that were created before start - end.
 func (q *SearchQuery) Between(start, end time.Time) *SearchQuery {
 	q.
-		Where("date", "$ge", start).
-		Where("date", "$le", end)
+		Where("date", "$gte", start).
+		Where("date", "$lte", end)
 	return q
 }
 
