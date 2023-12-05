@@ -47,7 +47,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 	isError := query.Get("error")
 
 	record := structs.CallLog{
-		Date:           time.Now(),
+		Date:           time.Now().Local(),
 		Caller:         caller,
 		InboundNumber:  inboundNumber,
 		TransferTarget: transferTo,
@@ -429,6 +429,7 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 
 	logs, err := svc.CallLogDB.Search(ctx, query)
 	if err != nil {
+		log.L(ctx).Errorf("failed to search for call log entries: %s", query.String())
 		return nil, err
 	}
 

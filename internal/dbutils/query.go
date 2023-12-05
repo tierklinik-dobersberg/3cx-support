@@ -1,6 +1,8 @@
 package dbutils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -65,4 +67,14 @@ func (q *SimpleQueryBuilder) Build() bson.M {
 		return bson.M{}
 	}
 	return q.f
+}
+
+func (q *SimpleQueryBuilder) String() string {
+	buf := new(bytes.Buffer)
+
+	enc := json.NewEncoder(buf)
+
+	enc.Encode(q.Build())
+
+	return buf.String()
 }
