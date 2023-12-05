@@ -71,6 +71,7 @@ github.com/pelletier/go-toml v1.0.1-0.20170904195809-1d6b12b7cb29/go.mod h1:5z9K
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
+github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rs/cors v1.10.1 h1:L0uuZVXIKlI1SShY2nhFfo44TYvDPQ1w4oFkUJNfhyo=
 github.com/rs/cors v1.10.1/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
@@ -102,6 +103,8 @@ github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/tierklinik-dobersberg/apis v0.0.0-20231204080707-b2c2a4c8ca6b h1:Wj9yx6Mdp2vFc5BJZr86GkyzdidgSIvK39cWa7/07hg=
 github.com/tierklinik-dobersberg/apis v0.0.0-20231204080707-b2c2a4c8ca6b/go.mod h1:0uxyEzRMVO6Y/m0zf9ZGVd+9TMYetOy4HbfwJ54oWOc=
+github.com/tierklinik-dobersberg/apis v0.0.0-20231205172343-f465ed3fdb54 h1:kZjWdHiHw8cNrL3SrnNHvF6akBTANeKb6Z03d2WNVqk=
+github.com/tierklinik-dobersberg/apis v0.0.0-20231205172343-f465ed3fdb54/go.mod h1:nrqkEfFtNtrxfL+v88MVVBBbJtUsTSibbhvzUm/s33w=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=
