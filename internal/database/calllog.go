@@ -82,26 +82,27 @@ func (db *database) setup(ctx context.Context) error {
 }
 
 func (db *database) CreateUnidentified(ctx context.Context, record structs.CallLog) error {
+	if record.ID.IsZero() {
+		record.ID = primitive.NewObjectID()
+	}
+
 	if err := db.perpareRecord(ctx, &record); err != nil {
 		return err
 	}
 
-	result, err := db.collection.InsertOne(ctx, record)
+	_, err := db.collection.InsertOne(ctx, record)
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
-	}
-
-	// Just make sure the result is what we expect.
-	if id, ok := result.InsertedID.(primitive.ObjectID); ok {
-		record.ID = id
-	} else {
-		log.L(ctx).Errorf("invalid type in result.InsertedID, expected primitive.ObjectID but got %T", result.InsertedID)
 	}
 
 	return nil
 }
 
 func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallLog) error {
+	if record.ID.IsZero() {
+		record.ID = primitive.NewObjectID()
+	}
+
 	log := log.L(ctx)
 	if err := db.perpareRecord(ctx, &record); err != nil {
 		return err
