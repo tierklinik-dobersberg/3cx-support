@@ -65,7 +65,7 @@ func main() {
 
 	// create a new CallService and add it to the mux.
 	callService := services.New(providers)
-	serveMux.Handle("api/external/v1/calllog", http.HandlerFunc(callService.RecordCallHandler))
+	serveMux.Handle("/api/external/v1/calllog", http.HandlerFunc(callService.RecordCallHandler))
 
 	path, handler := pbx3cxv1connect.NewCallServiceHandler(callService, interceptors)
 	serveMux.Handle(path, handler)
