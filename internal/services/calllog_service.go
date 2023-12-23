@@ -193,6 +193,7 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 					Until:          timestamppb.New(overwrite.To),
 				},
 			},
+			PrimaryTransferTarget: target,
 		}
 
 		return connect.NewResponse(res), nil
