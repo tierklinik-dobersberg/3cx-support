@@ -27,6 +27,8 @@ type Database interface {
 	// GetOverwrite returns the currently active overwrite for the given date/time.
 	GetActiveOverwrite(ctx context.Context, date time.Time) (*structs.Overwrite, error)
 
+	// GetOverwrite returns a single overwrite identified by id. Even entries that are marked as deleted
+	// will be returned.
 	GetOverwrite(ctx context.Context, id string) (*structs.Overwrite, error)
 
 	// GetOverwrites returns all overwrites that have start or time between from and to.
@@ -82,7 +84,7 @@ func (db *database) setup(ctx context.Context) error {
 
 func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName string) (structs.Overwrite, error) {
 	if user == "" && phone == "" {
-		return structs.Overwrite{}, fmt.Errorf("Username and phone number not set")
+		return structs.Overwrite{}, fmt.Errorf("username and phone number not set")
 	}
 
 	overwrite := structs.Overwrite{
@@ -110,7 +112,7 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 
 	if len(overlapping) > 0 {
 		return structs.Overwrite{}, fmt.Errorf(
-			"Found existing overwrites between %s and %s", from.Format(time.RFC3339), to.Format(time.RFC3339),
+			"found existing overwrites between %s and %s", from.Format(time.RFC3339), to.Format(time.RFC3339),
 		)
 	}
 
@@ -120,7 +122,10 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		return structs.Overwrite{}, fmt.Errorf("failed to insert overwrite: %w", err)
 	}
 
-	log.Infof("created new roster overwrite")
+	log.WithFields(logrus.Fields{
+		"from": overwrite.From,
+		"to":   overwrite.To,
+	}).Infof("created new roster overwrite")
 
 	return overwrite, nil
 }
