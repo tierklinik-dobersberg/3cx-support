@@ -76,7 +76,17 @@ func (db *database) setup(ctx context.Context) error {
 		Options: options.Index().SetUnique(false).SetSparse(false),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
+		return fmt.Errorf("failed to create from-to index: %w", err)
+	}
+
+	_, err = db.overwrites.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "createdAt", Value: -1},
+		},
+		Options: options.Index().SetUnique(false).SetSparse(false),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create createdAt index: %w", err)
 	}
 
 	return nil
@@ -104,19 +114,6 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		"user":  user,
 		"phone": phone,
 	})
-
-	/*
-		overlapping, err := db.GetOverwrites(ctx, from, to, false)
-		if err != nil {
-			return structs.Overwrite{}, fmt.Errorf("failed to check for overlapping overwrites: %w", err)
-		}
-
-		if len(overlapping) > 0 {
-			return structs.Overwrite{}, fmt.Errorf(
-				"found existing overwrites between %s and %s", from.Format(time.RFC3339), to.Format(time.RFC3339),
-			)
-		}
-	*/
 
 	if res, err := db.overwrites.InsertOne(ctx, overwrite); err == nil {
 		overwrite.ID = res.InsertedID.(primitive.ObjectID)
