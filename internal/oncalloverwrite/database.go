@@ -121,9 +121,16 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		return structs.Overwrite{}, fmt.Errorf("failed to insert overwrite: %w", err)
 	}
 
+	target := "tel:" + overwrite.PhoneNumber + " <" + overwrite.DisplayName + ">"
+	if overwrite.UserID != "" {
+		target = "user:" + overwrite.UserID
+	}
+
 	log.WithFields(logrus.Fields{
-		"from": overwrite.From,
-		"to":   overwrite.To,
+		"from":      overwrite.From,
+		"to":        overwrite.To,
+		"target":    target,
+		"createdBy": creatorId,
 	}).Infof("created new roster overwrite")
 
 	return overwrite, nil
@@ -195,7 +202,7 @@ func (db *database) GetOverwrite(ctx context.Context, id string) (*structs.Overw
 }
 
 func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*structs.Overwrite, error) {
-	log.L(ctx).Infof("[active-overwrite] searching database ...")
+	log.L(ctx).Debug("[active-overwrite] searching database ...")
 
 	opts := options.FindOne().
 		SetSort(bson.D{
@@ -211,13 +218,13 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*st
 		},
 		"deleted": bson.M{"$ne": true},
 	}, opts)
-	log.L(ctx).Infof("[active-overwrite] received result")
+	log.L(ctx).Debug("[active-overwrite] received result")
 
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
 
-	log.L(ctx).Infof("[active-overwrite] decoding overwrite")
+	log.L(ctx).Debug("[active-overwrite] decoding overwrite")
 	var o structs.Overwrite
 	if err := res.Decode(&o); err != nil {
 		return nil, err
