@@ -105,16 +105,18 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		"phone": phone,
 	})
 
-	overlapping, err := db.GetOverwrites(ctx, from, to, false)
-	if err != nil {
-		return structs.Overwrite{}, fmt.Errorf("failed to check for overlapping overwrites: %w", err)
-	}
+	/*
+		overlapping, err := db.GetOverwrites(ctx, from, to, false)
+		if err != nil {
+			return structs.Overwrite{}, fmt.Errorf("failed to check for overlapping overwrites: %w", err)
+		}
 
-	if len(overlapping) > 0 {
-		return structs.Overwrite{}, fmt.Errorf(
-			"found existing overwrites between %s and %s", from.Format(time.RFC3339), to.Format(time.RFC3339),
-		)
-	}
+		if len(overlapping) > 0 {
+			return structs.Overwrite{}, fmt.Errorf(
+				"found existing overwrites between %s and %s", from.Format(time.RFC3339), to.Format(time.RFC3339),
+			)
+		}
+	*/
 
 	if res, err := db.overwrites.InsertOne(ctx, overwrite); err == nil {
 		overwrite.ID = res.InsertedID.(primitive.ObjectID)
@@ -197,6 +199,12 @@ func (db *database) GetOverwrite(ctx context.Context, id string) (*structs.Overw
 
 func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*structs.Overwrite, error) {
 	log.L(ctx).Infof("[active-overwrite] searching database ...")
+
+	opts := options.FindOne().
+		SetSort(bson.D{
+			{Key: "createdAt", Value: -1},
+		})
+
 	res := db.overwrites.FindOne(ctx, bson.M{
 		"from": bson.M{
 			"$lte": date,
@@ -205,7 +213,7 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*st
 			"$gt": date,
 		},
 		"deleted": bson.M{"$ne": true},
-	})
+	}, opts)
 	log.L(ctx).Infof("[active-overwrite] received result")
 
 	if res.Err() != nil {
@@ -221,7 +229,12 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*st
 }
 
 func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time) error {
-	res, err := db.overwrites.UpdateMany(
+	opts := options.FindOneAndUpdate().
+		SetSort(bson.D{
+			{Key: "createdAt", Value: -1},
+		})
+
+	res := db.overwrites.FindOneAndUpdate(
 		ctx,
 		bson.M{
 			"from": bson.M{
@@ -237,14 +250,11 @@ func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time) erro
 				"deleted": true,
 			},
 		},
+		opts,
 	)
 
-	if err != nil {
-		return err
-	}
-
-	if res.ModifiedCount == 0 {
-		return mongo.ErrNoDocuments
+	if res.Err() != nil {
+		return res.Err()
 	}
 
 	return nil
