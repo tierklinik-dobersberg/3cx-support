@@ -87,7 +87,7 @@ func (svc *CallService) UpdateInboundNumber(ctx context.Context, req *connect.Re
 	}), nil
 }
 
-func (svc *CallService) ListInboundNumbers(ctx context.Context, req *connect.Request[pbx3cxv1.ListInboundNumberRequest]) (*connect.Response[pbx3cxv1.ListInboundNumberResponse], error) {
+func (svc *CallService) ListInboundNumber(ctx context.Context, req *connect.Request[pbx3cxv1.ListInboundNumberRequest]) (*connect.Response[pbx3cxv1.ListInboundNumberResponse], error) {
 	res, err := svc.OverwriteDB.ListInboundNumbers(ctx)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
