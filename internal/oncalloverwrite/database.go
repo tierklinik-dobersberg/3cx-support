@@ -370,6 +370,8 @@ func (db *database) DeleteOverwrite(ctx context.Context, id string) error {
 }
 
 func (db *database) CreateInboundNumber(ctx context.Context, model structs.InboundNumber) error {
+	model.ID = primitive.NewObjectIDFromTimestamp(time.Now())
+
 	_, err := db.inboundNumbers.InsertOne(ctx, model)
 	if err != nil {
 		return fmt.Errorf("failed to perform insert: %w", err)
