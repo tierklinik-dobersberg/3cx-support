@@ -144,10 +144,10 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 
 	// prepare the overwrite model
 	model := structs.Overwrite{
-		From:      r.From.AsTime(),
-		To:        r.To.AsTime(),
-		CreatedBy: remoteUser.ID,
-		CreatedAt: time.Now(),
+		From:          r.From.AsTime(),
+		To:            r.To.AsTime(),
+		CreatedBy:     remoteUser.ID,
+		CreatedAt:     time.Now(),
 		InboundNumber: req.Msg.InboundNumber,
 	}
 
@@ -393,10 +393,28 @@ func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.T
 		return connect.NewResponse(res), nil
 	}
 
-	workingStaff, err := svc.Roster.GetWorkingStaff(ctx, connect.NewRequest(&rosterv1.GetWorkingStaffRequest{
-		Time:           timestamppb.New(dateTime),
+	var inboundNumberModel structs.InboundNumber
+
+	if inboundNumber != "" {
+		var err error
+		inboundNumberModel, err = svc.OverwriteDB.GetInboundNumber(ctx, inboundNumber)
+		if err != nil {
+			log.L(ctx).Errorf("failed to get inbound number model for %q, using default: %s", inboundNumber, err)
+		}
+	}
+
+	if inboundNumberModel.RosterTypeName == "" {
+		inboundNumberModel.RosterTypeName = svc.Config.RosterTypeName
+	}
+
+	workingStaff, err := svc.Roster.GetWorkingStaff2(ctx, connect.NewRequest(&rosterv1.GetWorkingStaffRequest2{
+		Query: &rosterv1.GetWorkingStaffRequest2_Time{
+			Time: timestamppb.New(dateTime),
+		},
+		// DEPRECATED: remove once everything is set up correctly
 		OnCall:         true,
-		RosterTypeName: svc.Config.RosterTypeName,
+		RosterTypeName: inboundNumberModel.RosterTypeName,
+		ShiftTags:      inboundNumberModel.RosterShiftTags,
 	}))
 	if err != nil {
 		return nil, fmt.Errorf("roster: failed to get working staff from RosterService: %w", err)

@@ -48,13 +48,13 @@ type Database interface {
 	DeleteOverwrite(ctx context.Context, id string) error
 
 	// CreateInboundNumber creates a new inbound number
-	CreateInboundNumber(ctx context.Context, number string, displayName string) error
+	CreateInboundNumber(ctx context.Context, model structs.InboundNumber) error
 
 	// DeleteInboundNumber deletes an existing inbound number.
 	DeleteInboundNumber(ctx context.Context, number string) error
 
 	// UpdateInboundNumber updates the display name of an existing inbound number
-	UpdateInboundNumber(ctx context.Context, number string, newDisplayName string) error
+	UpdateInboundNumber(ctx context.Context, model structs.InboundNumber) error
 
 	// ListInboundNumbers returns a list of existing inbound numbers.
 	ListInboundNumbers(ctx context.Context) ([]structs.InboundNumber, error)
@@ -368,11 +368,8 @@ func (db *database) DeleteOverwrite(ctx context.Context, id string) error {
 	return nil
 }
 
-func (db *database) CreateInboundNumber(ctx context.Context, number, displayName string) error {
-	_, err := db.inboundNumbers.InsertOne(ctx, structs.InboundNumber{
-		Number:      number,
-		DisplayName: displayName,
-	})
+func (db *database) CreateInboundNumber(ctx context.Context, model structs.InboundNumber) error {
+	_, err := db.inboundNumbers.InsertOne(ctx, model)
 	if err != nil {
 		return fmt.Errorf("failed to perform insert: %w", err)
 	}
@@ -395,14 +392,10 @@ func (db *database) DeleteInboundNumber(ctx context.Context, number string) erro
 	return nil
 }
 
-func (db *database) UpdateInboundNumber(ctx context.Context, number string, newDisplayName string) error {
-	res, err := db.inboundNumbers.UpdateOne(ctx, bson.M{
-		"number": number,
-	}, bson.M{
-		"$set": bson.M{
-			"displayName": newDisplayName,
-		},
-	})
+func (db *database) UpdateInboundNumber(ctx context.Context, model structs.InboundNumber) error {
+	res, err := db.inboundNumbers.ReplaceOne(ctx, bson.M{
+		"number": model.Number,
+	}, model)
 	if err != nil {
 		return fmt.Errorf("failed to perform update: %w", err)
 	}

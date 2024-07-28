@@ -3,23 +3,29 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func (svc *CallService) CreateInboundNumber(ctx context.Context, req *connect.Request[pbx3cxv1.CreateInboundNumberRequest]) (*connect.Response[pbx3cxv1.CreateInboundNumberResponse], error) {
-	err := svc.OverwriteDB.CreateInboundNumber(ctx, req.Msg.Number, req.Msg.DisplayName)
+	model := structs.InboundNumber{
+		Number:          req.Msg.Number,
+		DisplayName:     req.Msg.DisplayName,
+		RosterTypeName:  req.Msg.RosterTypeName,
+		RosterShiftTags: req.Msg.RosterShiftTags,
+	}
+
+	err := svc.OverwriteDB.CreateInboundNumber(ctx, model)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	return connect.NewResponse(&pbx3cxv1.CreateInboundNumberResponse{
-		InboundNumber: &pbx3cxv1.InboundNumber{
-			Number:      req.Msg.Number,
-			DisplayName: req.Msg.DisplayName,
-		},
+		InboundNumber: model.ToProto(),
 	}), nil
 }
 
@@ -37,16 +43,47 @@ func (svc *CallService) DeleteInboundNumber(ctx context.Context, req *connect.Re
 }
 
 func (svc *CallService) UpdateInboundNumber(ctx context.Context, req *connect.Request[pbx3cxv1.UpdateInboundNumberRequest]) (*connect.Response[pbx3cxv1.UpdateInboundNumberResponse], error) {
-	err := svc.OverwriteDB.UpdateInboundNumber(ctx, req.Msg.Number, req.Msg.NewDisplayName)
+	model, err := svc.OverwriteDB.GetInboundNumber(ctx, req.Msg.Number)
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+
+		return nil, err
+	}
+
+	paths := []string{
+		"display_name",
+		"roster_shift_tags",
+		"roster_type_name",
+	}
+
+	if pb := req.Msg.UpdateMask.GetPaths(); len(pb) > 0 {
+		paths = pb
+	}
+
+	for _, p := range paths {
+		switch p {
+		case "display_name":
+			model.DisplayName = req.Msg.NewDisplayName
+
+		case "roster_shift_tags":
+			model.RosterShiftTags = req.Msg.RosterShiftTags
+
+		case "roster_type_name":
+			model.RosterTypeName = req.Msg.RosterTypeName
+
+		default:
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid path in update_mask: %q", p))
+		}
+	}
+
+	if err := svc.OverwriteDB.UpdateInboundNumber(ctx, model); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	return connect.NewResponse(&pbx3cxv1.UpdateInboundNumberResponse{
-		InboundNumber: &pbx3cxv1.InboundNumber{
-			Number:      req.Msg.Number,
-			DisplayName: req.Msg.NewDisplayName,
-		},
+		InboundNumber: model.ToProto(),
 	}), nil
 }
 
