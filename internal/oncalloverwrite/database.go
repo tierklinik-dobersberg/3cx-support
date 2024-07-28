@@ -181,10 +181,9 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 
 func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time.Time, includeDeleted bool, inboundNumbers []string) ([]*structs.Overwrite, error) {
 	filter := bson.M{
-		"$and": bson.D{
-			{
-				Key: "$or",
-				Value: bson.A{
+		"$and": bson.A{
+			bson.M{
+				"$or": bson.A{
 					bson.M{
 						"from": bson.M{
 							"$gte": filterFrom,
@@ -203,9 +202,8 @@ func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time
 					},
 				},
 			},
-			{
-				Key: "$or",
-				Value: bson.A{
+			bson.M{
+				"$or": bson.A{
 					bson.M{
 						"inboundNumber": bson.M{
 							"$exists": false,
