@@ -12,6 +12,7 @@ func main() {
 	root.AddCommand(
 		cmds.GetCallLogCommand(root),
 		cmds.GetOnDutyCommand(root),
+		cmds.GetInboundNumbersCommand(root),
 	)
 
 	if err := root.Execute(); err != nil {
