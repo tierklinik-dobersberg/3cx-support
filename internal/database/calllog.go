@@ -19,10 +19,12 @@ type Database interface {
 	// CreateUnidentified creates new "unidentified" calllog record where
 	// we don't know the caller.
 	CreateUnidentified(ctx context.Context, log structs.CallLog) error
+
 	// RecordCustomerCall records a call that has been associated with a customer.
 	// When called, RecordCustomerCall searches for an "unidentified" calllog that
 	// was recorded at the same time and replaces that entry.
 	RecordCustomerCall(ctx context.Context, record structs.CallLog) error
+
 	// Search searches for all records that match query.
 	Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error)
 }

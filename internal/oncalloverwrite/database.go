@@ -15,8 +15,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// OverwriteJournal is used to keep track of emergency-duty-overwrites.
-const OverwriteJournal = "dutyRosterOverwrites"
+const (
+	// OverwriteJournal is used to keep track of emergency-duty-overwrites.
+	OverwriteJournal = "dutyRosterOverwrites"
+
+	// InboundNumberCollection is the name of the MongoDB collection that
+	// stores inbound numbers.
+	InboundNumberCollection = "inboundNumbers"
+)
 
 // Database is the database interface for the duty rosters.
 type Database interface {
@@ -25,26 +31,42 @@ type Database interface {
 	CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName string) (structs.Overwrite, error)
 
 	// GetOverwrite returns the currently active overwrite for the given date/time.
-	GetActiveOverwrite(ctx context.Context, date time.Time) (*structs.Overwrite, error)
+	GetActiveOverwrite(ctx context.Context, date time.Time, inboundNumbers []string) (*structs.Overwrite, error)
 
 	// GetOverwrite returns a single overwrite identified by id. Even entries that are marked as deleted
 	// will be returned.
 	GetOverwrite(ctx context.Context, id string) (*structs.Overwrite, error)
 
 	// GetOverwrites returns all overwrites that have start or time between from and to.
-	GetOverwrites(ctx context.Context, from, to time.Time, includeDeleted bool) ([]*structs.Overwrite, error)
+	GetOverwrites(ctx context.Context, from, to time.Time, includeDeleted bool, inboundNumbers []string) ([]*structs.Overwrite, error)
 
 	// DeleteOverwrite deletes the roster overwrite for the given
 	// day.
-	DeleteActiveOverwrite(ctx context.Context, date time.Time) error
+	DeleteActiveOverwrite(ctx context.Context, date time.Time, inboundNumber []string) error
 
 	// DeleteOverwrite deletes the roster overwrite with the given ID
 	DeleteOverwrite(ctx context.Context, id string) error
+
+	// CreateInboundNumber creates a new inbound number
+	CreateInboundNumber(ctx context.Context, number string, displayName string) error
+
+	// DeleteInboundNumber deletes an existing inbound number.
+	DeleteInboundNumber(ctx context.Context, number string) error
+
+	// UpdateInboundNumber updates the display name of an existing inbound number
+	UpdateInboundNumber(ctx context.Context, number string, newDisplayName string) error
+
+	// ListInboundNumbers returns a list of existing inbound numbers.
+	ListInboundNumbers(ctx context.Context) ([]structs.InboundNumber, error)
+
+	// GetInboundNumber returns the inbound number for the given number.
+	GetInboundNumber(ctx context.Context, number string) (structs.InboundNumber, error)
 }
 
 type database struct {
-	cli        *mongo.Client
-	overwrites *mongo.Collection
+	cli            *mongo.Client
+	overwrites     *mongo.Collection
+	inboundNumbers *mongo.Collection
 }
 
 // New is like new but directly accepts the mongoDB client to use.
@@ -54,8 +76,9 @@ func New(ctx context.Context, dbName string, client *mongo.Client) (Database, er
 	}
 
 	db := &database{
-		cli:        client,
-		overwrites: client.Database(dbName).Collection(OverwriteJournal),
+		cli:            client,
+		overwrites:     client.Database(dbName).Collection(OverwriteJournal),
+		inboundNumbers: client.Database(dbName).Collection(InboundNumberCollection),
 	}
 
 	if err := db.setup(ctx); err != nil {
@@ -76,7 +99,7 @@ func (db *database) setup(ctx context.Context) error {
 		Options: options.Index().SetUnique(false).SetSparse(false),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create from-to index: %w", err)
+		return fmt.Errorf("%s: failed to create from-to index: %w", OverwriteJournal, err)
 	}
 
 	_, err = db.overwrites.Indexes().CreateOne(ctx, mongo.IndexModel{
@@ -86,7 +109,27 @@ func (db *database) setup(ctx context.Context) error {
 		Options: options.Index().SetUnique(false).SetSparse(false),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create createdAt index: %w", err)
+		return fmt.Errorf("%s: failed to create createdAt index: %w", OverwriteJournal, err)
+	}
+
+	_, err = db.overwrites.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "inboundNumber", Value: 1},
+		},
+		Options: options.Index().SetSparse(true),
+	})
+	if err != nil {
+		return fmt.Errorf("%s: failed to create inboundNumber index: %w", OverwriteJournal, err)
+	}
+
+	_, err = db.inboundNumbers.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "number", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return fmt.Errorf("%s: failed to create number index: %w", InboundNumberCollection, err)
 	}
 
 	return nil
@@ -136,24 +179,46 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 	return overwrite, nil
 }
 
-func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time.Time, includeDeleted bool) ([]*structs.Overwrite, error) {
+func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time.Time, includeDeleted bool, inboundNumbers []string) ([]*structs.Overwrite, error) {
 	filter := bson.M{
-		"$or": bson.A{
-			bson.M{
-				"from": bson.M{
-					"$gte": filterFrom,
-					"$lt":  filterTo,
+		"$and": bson.D{
+			{
+				Key: "$or",
+				Value: bson.A{
+					bson.M{
+						"from": bson.M{
+							"$gte": filterFrom,
+							"$lt":  filterTo,
+						},
+					},
+					bson.M{
+						"to": bson.M{
+							"$gt": filterFrom,
+							"$lt": filterTo,
+						},
+					},
+					bson.M{
+						"from": bson.M{"$lte": filterFrom},
+						"to":   bson.M{"$gt": filterTo},
+					},
 				},
 			},
-			bson.M{
-				"to": bson.M{
-					"$gt": filterFrom,
-					"$lt": filterTo,
+			{
+				Key: "$or",
+				Value: bson.D{
+					bson.E{
+						Key: "inboundNumber",
+						Value: bson.M{
+							"$exists": false,
+						},
+					},
+					bson.E{
+						Key: "inboundNumber",
+						Value: bson.M{
+							"$in": inboundNumbers,
+						},
+					},
 				},
-			},
-			bson.M{
-				"from": bson.M{"$lte": filterFrom},
-				"to":   bson.M{"$gt": filterTo},
 			},
 		},
 	}
@@ -201,7 +266,7 @@ func (db *database) GetOverwrite(ctx context.Context, id string) (*structs.Overw
 	return &result, nil
 }
 
-func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*structs.Overwrite, error) {
+func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time, inboundNumbers []string) (*structs.Overwrite, error) {
 	log.L(ctx).Debug("[active-overwrite] searching database ...")
 
 	opts := options.FindOne().
@@ -216,15 +281,19 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*st
 		"to": bson.M{
 			"$gt": date,
 		},
+		"$or": bson.D{
+			bson.E{Key: "inboundNumber", Value: bson.M{"$exists": false}},
+			bson.E{Key: "inboundNumber", Value: bson.M{
+				"$in": inboundNumbers,
+			}},
+		},
 		"deleted": bson.M{"$ne": true},
 	}, opts)
-	log.L(ctx).Debug("[active-overwrite] received result")
 
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
 
-	log.L(ctx).Debug("[active-overwrite] decoding overwrite")
 	var o structs.Overwrite
 	if err := res.Decode(&o); err != nil {
 		return nil, err
@@ -232,7 +301,7 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time) (*st
 	return &o, nil
 }
 
-func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time) error {
+func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inboundNumbers []string) error {
 	opts := options.FindOneAndUpdate().
 		SetSort(bson.D{
 			{Key: "createdAt", Value: -1},
@@ -248,6 +317,12 @@ func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time) erro
 				"$gt": d,
 			},
 			"deleted": bson.M{"$ne": true},
+			"$or": bson.D{
+				bson.E{Key: "inboundNumber", Value: bson.M{"$exists": false}},
+				bson.E{Key: "inboundNumber", Value: bson.M{
+					"$in": inboundNumbers,
+				}},
+			},
 		},
 		bson.M{
 			"$set": bson.M{
@@ -291,4 +366,81 @@ func (db *database) DeleteOverwrite(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (db *database) CreateInboundNumber(ctx context.Context, number, displayName string) error {
+	_, err := db.inboundNumbers.InsertOne(ctx, structs.InboundNumber{
+		Number:      number,
+		DisplayName: displayName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to perform insert: %w", err)
+	}
+
+	return nil
+}
+
+func (db *database) DeleteInboundNumber(ctx context.Context, number string) error {
+	res, err := db.inboundNumbers.DeleteOne(ctx, bson.M{
+		"number": number,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to perform delete: %w", err)
+	}
+
+	if res.DeletedCount == 0 {
+		return mongo.ErrNoDocuments
+	}
+
+	return nil
+}
+
+func (db *database) UpdateInboundNumber(ctx context.Context, number string, newDisplayName string) error {
+	res, err := db.inboundNumbers.UpdateOne(ctx, bson.M{
+		"number": number,
+	}, bson.M{
+		"$set": bson.M{
+			"displayName": newDisplayName,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to perform update: %w", err)
+	}
+
+	if res.MatchedCount == 0 {
+		return mongo.ErrNoDocuments
+	}
+
+	return nil
+}
+
+func (db *database) ListInboundNumbers(ctx context.Context) ([]structs.InboundNumber, error) {
+	res, err := db.inboundNumbers.Find(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find numbers: %w", err)
+	}
+
+	var result []structs.InboundNumber
+	if err := res.All(ctx, &result); err != nil {
+		return result, fmt.Errorf("failed to decode: %w", err)
+	}
+
+	return result, nil
+}
+
+func (db *database) GetInboundNumber(ctx context.Context, number string) (structs.InboundNumber, error) {
+	var result structs.InboundNumber
+
+	res := db.inboundNumbers.FindOne(ctx, bson.M{
+		"number": number,
+	})
+	if res.Err() != nil {
+		return result, fmt.Errorf("failed to find number: %w", res.Err())
+	}
+
+	if err := res.Decode(&result); err != nil {
+		return result, fmt.Errorf("failed to decode: %w", err)
+	}
+
+	return result, nil
 }

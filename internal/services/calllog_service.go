@@ -124,7 +124,7 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		}
 	}
 
-	response, err := svc.resolveOnCallTarget(ctx, dateTime, req.Msg.IgnoreOverwrites)
+	response, err := svc.resolveOnCallTarget(ctx, dateTime, req.Msg.IgnoreOverwrites, req.Msg.InboundNumber)
 	if err != nil {
 		return svc.handleOnCallError(ctx, err)
 	}
@@ -148,6 +148,7 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 		To:        r.To.AsTime(),
 		CreatedBy: remoteUser.ID,
 		CreatedAt: time.Now(),
+		InboundNumber: req.Msg.InboundNumber,
 	}
 
 	switch v := r.TransferTarget.(type) {
@@ -183,8 +184,14 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 
 	// notify administrators about the new overwrite.
 	go func() {
+		what := "all numbers"
+		if model.InboundNumber != "" {
+			what = model.InboundNumber
+		}
+
 		if err := svc.sendNotificationToAdmins(context.Background(), remoteUser.ID, fmt.Sprintf(
-			"User {{ .Sender | displayName }} created a new overwrite to %s from %s to %s",
+			"User {{ .Sender | displayName }} created a new overwrite for %s to %s from %s to %s",
+			what,
 			target,
 			model.From.In(time.Local).Format(time.RFC3339),
 			model.To.In(time.Local).Format(time.RFC3339),
@@ -207,7 +214,7 @@ func (svc *CallService) DeleteOverwrite(ctx context.Context, req *connect.Reques
 	case *pbx3cxv1.DeleteOverwriteRequest_OverwriteId:
 		err = svc.OverwriteDB.DeleteOverwrite(ctx, v.OverwriteId)
 	case *pbx3cxv1.DeleteOverwriteRequest_ActiveAt:
-		err = svc.OverwriteDB.DeleteActiveOverwrite(ctx, v.ActiveAt.AsTime())
+		err = svc.OverwriteDB.DeleteActiveOverwrite(ctx, v.ActiveAt.AsTime(), req.Msg.InboundNumbers.GetNumbers())
 
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid or unsupported selector"))
@@ -233,7 +240,7 @@ func (svc *CallService) GetOverwrite(ctx context.Context, req *connect.Request[p
 	switch v := req.Msg.Selector.(type) {
 	case *pbx3cxv1.GetOverwriteRequest_ActiveAt:
 		var overwrite *structs.Overwrite
-		overwrite, err = svc.OverwriteDB.GetActiveOverwrite(ctx, v.ActiveAt.AsTime())
+		overwrite, err = svc.OverwriteDB.GetActiveOverwrite(ctx, v.ActiveAt.AsTime(), req.Msg.InboundNumbers.GetNumbers())
 
 		overwrites = []*structs.Overwrite{overwrite}
 
@@ -250,7 +257,7 @@ func (svc *CallService) GetOverwrite(ctx context.Context, req *connect.Request[p
 		overwrites = []*structs.Overwrite{overwrite}
 
 	case *pbx3cxv1.GetOverwriteRequest_TimeRange:
-		overwrites, err = svc.OverwriteDB.GetOverwrites(ctx, v.TimeRange.From.AsTime(), v.TimeRange.To.AsTime(), false)
+		overwrites, err = svc.OverwriteDB.GetOverwrites(ctx, v.TimeRange.From.AsTime(), v.TimeRange.To.AsTime(), false, req.Msg.InboundNumbers.GetNumbers())
 
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid or unsupported selector"))
@@ -354,8 +361,13 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 	return connect.NewResponse(res), nil
 }
 
-func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.Time, ignoreOverwrites bool) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
-	overwrite, err := svc.OverwriteDB.GetActiveOverwrite(ctx, dateTime)
+func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.Time, ignoreOverwrites bool, inboundNumber string) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
+	var numbers []string
+	if inboundNumber != "" {
+		numbers = []string{inboundNumber}
+	}
+
+	overwrite, err := svc.OverwriteDB.GetActiveOverwrite(ctx, dateTime, numbers)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, fmt.Errorf("database: %w", err)
 	}

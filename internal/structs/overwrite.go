@@ -39,6 +39,9 @@ type Overwrite struct {
 
 	// CreatedAt holds the time at which the overwrite has been created.
 	CreatedAt time.Time `bson:"createdAt,omitempty" json:"createdAt"`
+
+	// InboundNumber is the inbound number this overwrite relates to.
+	InboundNumber string `bson:"inboundNumber,omitempty"`
 }
 
 func (ov Overwrite) ToProto() *pbx3cxv1.Overwrite {
@@ -48,6 +51,9 @@ func (ov Overwrite) ToProto() *pbx3cxv1.Overwrite {
 		To:              timestamppb.New(ov.To),
 		CreatedAt:       timestamppb.New(ov.CreatedAt),
 		CreatedByUserId: ov.CreatedBy,
+		InboundNumber: &pbx3cxv1.InboundNumber{
+			Number: ov.InboundNumber,
+		},
 	}
 
 	if ov.PhoneNumber != "" {
