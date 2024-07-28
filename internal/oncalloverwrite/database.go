@@ -403,7 +403,7 @@ func (db *database) UpdateInboundNumber(ctx context.Context, model structs.Inbou
 }
 
 func (db *database) ListInboundNumbers(ctx context.Context) ([]structs.InboundNumber, error) {
-	res, err := db.inboundNumbers.Find(ctx, nil)
+	res, err := db.inboundNumbers.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find numbers: %w", err)
 	}
