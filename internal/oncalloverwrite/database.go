@@ -203,18 +203,7 @@ func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time
 				},
 			},
 			bson.M{
-				"$or": bson.A{
-					bson.M{
-						"inboundNumber": bson.M{
-							"$exists": false,
-						},
-					},
-					bson.M{
-						"inboundNumber": bson.M{
-							"$in": inboundNumbers,
-						},
-					},
-				},
+				"$or": getInboundNumbersFilter(inboundNumbers),
 			},
 		},
 	}
@@ -277,12 +266,7 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time, inbo
 		"to": bson.M{
 			"$gt": date,
 		},
-		"$or": bson.A{
-			bson.M{"inboundNumber": bson.M{"$exists": false}},
-			bson.M{"inboundNumber": bson.M{
-				"$in": inboundNumbers,
-			}},
-		},
+		"$or":     getInboundNumbersFilter(inboundNumbers),
 		"deleted": bson.M{"$ne": true},
 	}, opts)
 
@@ -295,6 +279,26 @@ func (db *database) GetActiveOverwrite(ctx context.Context, date time.Time, inbo
 		return nil, err
 	}
 	return &o, nil
+}
+
+func getInboundNumbersFilter(inboundNumbers []string) bson.A {
+	inboundNumbersFilter := bson.A{
+		bson.M{
+			"inboundNumber": bson.M{
+				"$exists": false,
+			},
+		},
+	}
+
+	if len(inboundNumbers) > 0 {
+		inboundNumbersFilter = append(inboundNumbersFilter, bson.M{
+			"inboundNumber": bson.M{
+				"$in": inboundNumbers,
+			},
+		})
+	}
+
+	return inboundNumbersFilter
 }
 
 func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inboundNumbers []string) error {
@@ -313,12 +317,7 @@ func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inbo
 				"$gt": d,
 			},
 			"deleted": bson.M{"$ne": true},
-			"$or": bson.A{
-				bson.M{"inboundNumber": bson.M{"$exists": false}},
-				bson.M{"inboundNumber": bson.M{
-					"$in": inboundNumbers,
-				}},
-			},
+			"$or":     getInboundNumbersFilter(inboundNumbers),
 		},
 		bson.M{
 			"$set": bson.M{
