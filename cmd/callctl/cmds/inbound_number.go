@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/cli"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 func GetInboundNumbersCommand(root *cli.Root) *cobra.Command {
@@ -32,7 +33,11 @@ func GetInboundNumbersCommand(root *cli.Root) *cobra.Command {
 }
 
 func GetCreateInboundNumberCommand(root *cli.Root) *cobra.Command {
-	var displayName string
+	var (
+		displayName string
+		shiftTags   []string
+		roster      string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "create [number] [flags]",
@@ -42,8 +47,10 @@ func GetCreateInboundNumberCommand(root *cli.Root) *cobra.Command {
 			svc := root.CallService()
 
 			res, err := svc.CreateInboundNumber(root.Context(), connect.NewRequest(&pbx3cxv1.CreateInboundNumberRequest{
-				Number:      args[0],
-				DisplayName: displayName,
+				Number:          args[0],
+				DisplayName:     displayName,
+				RosterShiftTags: shiftTags,
+				RosterTypeName:  roster,
 			}))
 
 			if err != nil {
@@ -55,12 +62,18 @@ func GetCreateInboundNumberCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&displayName, "display-name", "d", "", "An optional display name for the inbound number")
+	cmd.Flags().StringVarP(&roster, "roster-type-name", "r", "", "An optional roster type name for the inbound number")
+	cmd.Flags().StringSliceVar(&shiftTags, "shift-tags", nil, "A list of shift tags to assign to the inbound number")
 
 	return cmd
 }
 
 func GetUpdateInboundNumberCommand(root *cli.Root) *cobra.Command {
-	var displayName string
+	var (
+		displayName string
+		roster      string
+		shiftTags   []string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "update [number] [flags]",
@@ -69,10 +82,27 @@ func GetUpdateInboundNumberCommand(root *cli.Root) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			svc := root.CallService()
 
-			res, err := svc.UpdateInboundNumber(root.Context(), connect.NewRequest(&pbx3cxv1.UpdateInboundNumberRequest{
-				Number:         args[0],
-				NewDisplayName: displayName,
-			}))
+			flags := [][]string{
+				[]string{"display-name", "display_name"},
+				[]string{"roster-type-name", "roster_type_name"},
+				[]string{"shift-tags", "roster_shift_tags"},
+			}
+
+			req := &pbx3cxv1.UpdateInboundNumberRequest{
+				Number:          args[0],
+				NewDisplayName:  displayName,
+				RosterShiftTags: shiftTags,
+				RosterTypeName:  roster,
+				UpdateMask:      &fieldmaskpb.FieldMask{},
+			}
+
+			for _, f := range flags {
+				if cmd.Flag(f[0]).Changed {
+					req.UpdateMask.Paths = append(req.UpdateMask.Paths, f[1])
+				}
+			}
+
+			res, err := svc.UpdateInboundNumber(root.Context(), connect.NewRequest(req))
 
 			if err != nil {
 				log.Fatal(err)
@@ -83,6 +113,8 @@ func GetUpdateInboundNumberCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&displayName, "display-name", "d", "", "An optional display name for the inbound number")
+	cmd.Flags().StringVarP(&roster, "roster-type-name", "r", "", "An optional roster type name for the inbound number")
+	cmd.Flags().StringSliceVar(&shiftTags, "shift-tags", nil, "A list of shift tags to assign to the inbound number")
 
 	return cmd
 }
