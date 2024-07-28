@@ -177,7 +177,7 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 	}
 
 	// actually create the overwrite
-	model, err = svc.OverwriteDB.CreateOverwrite(ctx, model.CreatedBy, model.From, model.To, model.UserID, model.PhoneNumber, model.DisplayName)
+	model, err = svc.OverwriteDB.CreateOverwrite(ctx, model.CreatedBy, model.From, model.To, model.UserID, model.PhoneNumber, model.DisplayName, model.InboundNumber)
 	if err != nil {
 		return nil, err
 	}

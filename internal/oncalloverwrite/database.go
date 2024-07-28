@@ -28,7 +28,7 @@ const (
 type Database interface {
 	// CreateOverwrite configures an emergency doctor-on-duty overwrite for the
 	// given date.
-	CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName string) (structs.Overwrite, error)
+	CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName, inboundNumber string) (structs.Overwrite, error)
 
 	// GetOverwrite returns the currently active overwrite for the given date/time.
 	GetActiveOverwrite(ctx context.Context, date time.Time, inboundNumbers []string) (*structs.Overwrite, error)
@@ -135,27 +135,29 @@ func (db *database) setup(ctx context.Context) error {
 	return nil
 }
 
-func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName string) (structs.Overwrite, error) {
+func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from, to time.Time, user, phone, displayName, inboundNumber string) (structs.Overwrite, error) {
 	if user == "" && phone == "" {
 		return structs.Overwrite{}, fmt.Errorf("username and phone number not set")
 	}
 
 	overwrite := structs.Overwrite{
-		From:        from,
-		To:          to,
-		UserID:      user,
-		PhoneNumber: phone,
-		DisplayName: displayName,
-		CreatedAt:   time.Now(),
-		CreatedBy:   creatorId,
-		Deleted:     false,
+		From:          from,
+		To:            to,
+		UserID:        user,
+		PhoneNumber:   phone,
+		DisplayName:   displayName,
+		CreatedAt:     time.Now(),
+		CreatedBy:     creatorId,
+		Deleted:       false,
+		InboundNumber: inboundNumber,
 	}
 
 	log := log.L(ctx).WithFields(logrus.Fields{
-		"from":  from,
-		"to":    to,
-		"user":  user,
-		"phone": phone,
+		"from":          from,
+		"to":            to,
+		"user":          user,
+		"phone":         phone,
+		"inboundNumber": inboundNumber,
 	})
 
 	if res, err := db.overwrites.InsertOne(ctx, overwrite); err == nil {
