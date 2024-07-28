@@ -183,31 +183,35 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 
 func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time.Time, includeDeleted bool, inboundNumbers []string) ([]*structs.Overwrite, error) {
 	filter := bson.M{
-		"$and": bson.A{
+		"$or": bson.A{
 			bson.M{
-				"$or": bson.A{
-					bson.M{
-						"from": bson.M{
-							"$gte": filterFrom,
-							"$lt":  filterTo,
-						},
-					},
-					bson.M{
-						"to": bson.M{
-							"$gt": filterFrom,
-							"$lt": filterTo,
-						},
-					},
-					bson.M{
-						"from": bson.M{"$lte": filterFrom},
-						"to":   bson.M{"$gt": filterTo},
-					},
+				"from": bson.M{
+					"$gte": filterFrom,
+					"$lt":  filterTo,
 				},
 			},
 			bson.M{
-				"$or": getInboundNumbersFilter(inboundNumbers),
+				"to": bson.M{
+					"$gt": filterFrom,
+					"$lt": filterTo,
+				},
+			},
+			bson.M{
+				"from": bson.M{"$lte": filterFrom},
+				"to":   bson.M{"$gt": filterTo},
 			},
 		},
+	}
+
+	if len(inboundNumbers) > 0 {
+		filter = bson.M{
+			"$and": bson.A{
+				filter,
+				bson.M{
+					"$or": getInboundNumbersFilter(inboundNumbers),
+				},
+			},
+		}
 	}
 	if !includeDeleted {
 		filter["deleted"] = bson.M{"$ne": true}
