@@ -2,6 +2,7 @@ package cmds
 
 import (
 	"context"
+	"time"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/sirupsen/logrus"
@@ -14,6 +15,7 @@ func GetOnDutyCommand(root *cli.Root) *cobra.Command {
 	var (
 		ignoreOverwrites bool
 		date             string
+		inboundNumber    string
 	)
 
 	cmd := &cobra.Command{
@@ -23,6 +25,7 @@ func GetOnDutyCommand(root *cli.Root) *cobra.Command {
 			res, err := root.CallService().GetOnCall(context.Background(), connect.NewRequest(&pbx3cxv1.GetOnCallRequest{
 				IgnoreOverwrites: ignoreOverwrites,
 				Date:             date,
+				InboundNumber:    inboundNumber,
 			}))
 
 			if err != nil {
@@ -33,8 +36,9 @@ func GetOnDutyCommand(root *cli.Root) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&date, "date", "", "")
-	cmd.Flags().BoolVar(&ignoreOverwrites, "ingore-overwrites", false, "")
+	cmd.Flags().StringVar(&date, "date", "", "The date for which on-call should be returned. Format: "+time.RFC3339)
+	cmd.Flags().StringVar(&inboundNumber, "number", "", "The inbound number for which on-call should be returned")
+	cmd.Flags().BoolVar(&ignoreOverwrites, "ingore-overwrites", false, "Whether or not overwrites should be ignored.")
 
 	return cmd
 }
