@@ -363,6 +363,11 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 
 func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.Time, ignoreOverwrites bool, inboundNumber string) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
 	var numbers []string
+
+	if inboundNumber == "" && svc.Config.DefaultOnCallInboundNumber != "" {
+		inboundNumber = svc.Config.DefaultOnCallInboundNumber
+	}
+
 	if inboundNumber != "" {
 		numbers = []string{inboundNumber}
 	}
