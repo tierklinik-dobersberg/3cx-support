@@ -27,6 +27,7 @@ func GetInboundNumbersCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreateInboundNumberCommand(root),
 		GetUpdateInboundNumberCommand(root),
+		GetDeleteInboundNumberCommand(root),
 	)
 
 	return cmd

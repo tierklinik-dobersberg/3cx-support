@@ -335,7 +335,17 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 	}
 
 	if tr := req.Msg.TimeRange; tr != nil {
-		query.Between(tr.From.AsTime(), tr.To.AsTime())
+		switch {
+		case tr.From.IsValid() && tr.To.IsValid():
+			query.Between(tr.From.AsTime(), tr.To.AsTime())
+
+		case tr.From.IsValid():
+			query.After(tr.From.AsTime())
+
+		case tr.To.IsValid():
+			query.Before(tr.To.AsTime())
+		}
+
 	} else if req.Msg.Date != "" {
 		parsed, err := time.ParseInLocation("2006-01-02", req.Msg.Date, time.Local)
 		if err != nil {
