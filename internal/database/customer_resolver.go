@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
@@ -46,11 +47,10 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 
 	// this one cancels as soon as the h2 stream ends
 	resultChan, errChan := cr.db.StreamSearch(ctx, query)
+	stream := cr.cli.SearchCustomerStream(ctx)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	stream := cr.cli.SearchCustomerStream(ctx)
 
 	go func() {
 		defer log.L(ctx).Infof("receive loop finished")
@@ -170,7 +170,18 @@ L:
 
 	log.L(ctx).Infof("waiting for goroutines to finish")
 
+	go func() {
+		time.Sleep(time.Second * 30)
+		cancel()
+	}()
+
 	wg.Wait()
+
+	cr.customerLock.Lock()
+	defer cr.customerLock.Unlock()
+
+	cr.recordsLock.Lock()
+	defer cr.recordsLock.Unlock()
 
 	results := make([]*pbx3cxv1.CallEntry, len(cr.records))
 	for idx, r := range cr.records {
