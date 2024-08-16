@@ -119,6 +119,14 @@ func main() {
 				log.L(ctx).Errorf("failed to search for customers: %s", err)
 			} else {
 				log.L(ctx).Infof("found %d customers for unmatched numbers", len(queryResult.Msg.Results))
+
+				for _, c := range queryResult.Msg.Results {
+					for _, number := range c.Customer.PhoneNumbers {
+						if err := providers.CallLogDB.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
+							log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number)
+						}
+					}
+				}
 			}
 		}()
 

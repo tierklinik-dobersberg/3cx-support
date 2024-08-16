@@ -32,6 +32,7 @@ type Database interface {
 	StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error)
 
 	FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error)
+	UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error
 }
 
 type database struct {
@@ -101,6 +102,31 @@ func (db *database) CreateUnidentified(ctx context.Context, record structs.CallL
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
+
+	return nil
+}
+
+func (db *database) UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error {
+	res, err := db.collection.UpdateMany(ctx, bson.M{
+		"caller": number,
+		"customerSource": bson.M{
+			"$exists": false,
+		},
+		"customerID": bson.M{
+			"$exists": false,
+		},
+	}, bson.M{
+		"$set": bson.M{
+			"customerSource": "",
+			"customerID":     customerId,
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update customers: %w", err)
+	}
+
+	log.L(ctx).Infof("updated %d customer entries", res.ModifiedCount)
 
 	return nil
 }
