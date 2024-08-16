@@ -12,6 +12,7 @@ import (
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -40,16 +41,15 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 	var wg sync.WaitGroup
 	errs := new(multierror.Error)
 
-	stream := cr.cli.SearchCustomerStream(ctx)
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	stream := cr.cli.SearchCustomerStream(ctx)
+
 	resultChan, errChan := cr.db.StreamSearch(ctx, query)
 
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer log.L(ctx).Infof("receive loop finished")
 
 		for {
 			msg, err := stream.Receive()
@@ -57,6 +57,8 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 				if !errors.Is(err, io.EOF) {
 					cancel()
 				}
+
+				log.L(ctx).Errorf("failed to receive message: %s", err)
 
 				return
 			}
@@ -75,10 +77,14 @@ L:
 	for {
 		select {
 		case <-ctx.Done():
+			log.L(ctx).Infof("context cancelled")
+
 			break L
 
 		case record, ok := <-resultChan:
 			if !ok {
+				log.L(ctx).Infof("result channel closed")
+
 				break L
 			}
 
@@ -95,7 +101,7 @@ L:
 
 				if !ok {
 					// search for the customer
-					cr.inflight.Do(record.CustomerID, func() (interface{}, error) {
+					_, err, _ := cr.inflight.Do(record.CustomerID, func() (interface{}, error) {
 						cr.customerLock.Lock()
 						cr.customers[record.CustomerID] = nil
 						cr.customerLock.Unlock()
@@ -130,20 +136,28 @@ L:
 						}
 
 						wg.Add(1)
-
 						return nil, nil
 					})
+					if err != nil {
+						log.L(ctx).Errorf("failed to send customer lookup query: %s", err)
+
+						cancel()
+					}
 				}
 			}
 
 		case err, ok := <-errChan:
 			if !ok {
+				log.L(ctx).Infof("error channel closed")
+
 				break L
 			}
 
 			errs.Errors = append(errs.Errors, err)
 		}
 	}
+
+	log.L(ctx).Infof("waiting for goroutines to finish")
 
 	wg.Wait()
 
