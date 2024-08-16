@@ -153,6 +153,14 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 		// copy existing values to the new record
 		record.ID = existing.ID
 		record.InboundNumber = existing.InboundNumber
+		record.TransferTarget = existing.TransferTarget
+		record.Error = existing.Error
+		record.TransferFrom = existing.TransferFrom
+		record.CallID = existing.CallID
+
+		if record.CustomerID == "" {
+			record.CustomerID = existing.CustomerID
+		}
 
 		result := db.collection.FindOneAndReplace(ctx, bson.M{"_id": record.ID}, record)
 		if result.Err() != nil {

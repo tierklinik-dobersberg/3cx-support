@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +22,6 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/mongo"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -43,74 +41,6 @@ func New(p *config.Providers) *CallService {
 	return &CallService{
 		Providers: p,
 	}
-}
-
-func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
-
-	caller := query.Get("ani")
-	inboundNumber := query.Get("did")
-	transferTo := query.Get("transferTo")
-	isError := query.Get("error")
-
-	record := structs.CallLog{
-		Date:           time.Now().Local(),
-		Caller:         caller,
-		InboundNumber:  inboundNumber,
-		TransferTarget: transferTo,
-	}
-
-	if isError != "" {
-		parsedBool, err := strconv.ParseBool(isError)
-		if err == nil {
-			record.Error = parsedBool
-		} else {
-			log.L(req.Context()).Errorf("failed to parse error parameter %v: %s", isError, err)
-		}
-	}
-
-	if err := svc.CallLogDB.CreateUnidentified(req.Context(), record); err != nil {
-		log.L(req.Context()).Errorf("failed to create unidentified call-log entry: %s", err)
-	} else {
-		log.L(req.Context()).Infof("successfully created unidentified call log entry: %#v", record)
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx3cxv1.RecordCallRequest]) (*connect.Response[emptypb.Empty], error) {
-	msg := req.Msg
-
-	record := structs.CallLog{
-		Caller:         msg.Number,
-		Agent:          msg.Agent,
-		CallType:       msg.CallType,
-		CustomerID:     msg.CustomerId,
-		CustomerSource: msg.CustomerSource,
-	}
-
-	if msg.Duration != "" {
-		durationInSeconds, err := strconv.ParseUint(msg.Duration, 10, 64)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for duration: %q: %w", msg.Duration, err))
-		}
-
-		record.DurationSeconds = durationInSeconds
-	}
-
-	date, err := time.ParseInLocation("02.01.2006 15:04", msg.DateTime, time.Local)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for date-time: %w", err))
-	}
-
-	record.Date = date
-	record.AgentUserId = svc.getUserIdForAgent(ctx, record.Agent)
-
-	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
-		return nil, err
-	}
-
-	return connect.NewResponse(&emptypb.Empty{}), nil
 }
 
 func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3cxv1.GetOnCallRequest]) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {

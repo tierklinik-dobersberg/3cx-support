@@ -38,6 +38,12 @@ type CallLog struct {
 	Error bool `json:"error,omitempty" bson:"error,omitempty"`
 	// TransferTarget is set to the destination of call transfer.
 	TransferTarget string `json:"transferTarget,omitempty" bson:"transferTarget,omitempty"`
+
+	// TransferFrom is the transfering phone extension
+	TransferFrom string `json:"transferFrom,omitempty" bson:"transferFrom,omitempty"`
+
+	// CallID Is the internal ID of the call.
+	CallID string `json:"callID,omitempty" bson:"callID,omitempty"`
 }
 
 func (log CallLog) ToProto() *pbx3cxv1.CallEntry {

@@ -15,6 +15,7 @@ import (
 type Config struct {
 	IdmURL                     string   `env:"IDM_URL" json:"idmURL"`
 	RosterdURL                 string   `env:"ROSTERD_URL" json:"rosterdUrl"`
+	CustomerServiceURL         string   `env:"CUSTOMERD_URL" json:"customerdUrl"`
 	Country                    string   `env:"COUNTRY,default=AT" json:"country"`
 	MongoURL                   string   `env:"MONGO_URL" json:"mongoUrl"`
 	Database                   string   `env:"DATABASE" json:"database"`
@@ -75,6 +76,10 @@ func LoadConfig(ctx context.Context, path string) (*Config, error) {
 
 	if cfg.MongoURL == "" {
 		return nil, fmt.Errorf("missing mongoUrl config setting")
+	}
+
+	if cfg.CustomerServiceURL == "" {
+		return nil, fmt.Errorf("missing customerdUrl config setting")
 	}
 
 	return &cfg, nil
