@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -41,6 +42,8 @@ func NewCustomerResolver(db Database, cli customerv1connect.CustomerServiceClien
 func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*pbx3cxv1.CallEntry, []*customerv1.Customer, error) {
 
 	var wg sync.WaitGroup
+	var pending atomic.Int64
+
 	errs := new(multierror.Error)
 
 	// this one cancels as soon as the h2 stream ends
@@ -62,16 +65,16 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 				return
 			}
 
+			pending.Add(-1)
+
 			// for each sent request, we add 1 to the waitgroup
 			wg.Done()
 
-			log.L(ctx).Infof("waiting for customer lock")
 			cr.customerLock.Lock()
 			for _, c := range msg.Results {
 				cr.customers[c.Customer.Id] = c.Customer
 			}
 			cr.customerLock.Unlock()
-			log.L(ctx).Infof("customer map updated")
 
 			for _, c := range msg.Results {
 				log.L(ctx).Infof("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
@@ -114,6 +117,7 @@ L:
 
 						logrus.Infof("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
 						wg.Add(1)
+						pending.Add(1)
 
 						if record.CustomerSource == "" {
 							if err := stream.Send(&customerv1.SearchCustomerRequest{
@@ -126,6 +130,8 @@ L:
 								},
 							}); err != nil {
 								wg.Done()
+								pending.Add(-1)
+
 								return nil, fmt.Errorf("failed to send query: %w", err)
 							}
 						} else {
@@ -142,6 +148,8 @@ L:
 								},
 							}); err != nil {
 								wg.Done()
+								pending.Add(-1)
+
 								return nil, fmt.Errorf("failed to send query: %w", err)
 							}
 						}
@@ -171,7 +179,7 @@ L:
 		log.L(ctx).Errorf("failed to close request side of stream: %s", err)
 	}
 
-	log.L(ctx).Infof("waiting for goroutines to finish")
+	log.L(ctx).Infof("waiting for goroutines to finish, count=%d", pending.Load())
 
 	go func() {
 		time.Sleep(time.Second * 30)
@@ -180,7 +188,8 @@ L:
 
 	wg.Wait()
 
-	log.L(ctx).Infof("waiting for customer and record locks")
+	log.L(ctx).Infof("goroutines finished, count=%d", pending.Load())
+
 	cr.customerLock.Lock()
 	defer cr.customerLock.Unlock()
 
