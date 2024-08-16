@@ -113,12 +113,14 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 					log.L(ctx).Errorf("failed to find customer record for phone number %q", record.Caller)
 				}
 			}
+		} else {
+			log.L(ctx).Infof("unspecified caller, not searching for records: %q", record.Caller)
 		}
 
 		if err := svc.CallLogDB.CreateUnidentified(ctx, record); err != nil {
-			log.L(req.Context()).Errorf("failed to create unidentified call-log entry: %s", err)
+			log.L(ctx).Errorf("failed to create unidentified call-log entry: %s", err)
 		} else {
-			log.L(req.Context()).Infof("successfully created unidentified call log entry: %#v", record)
+			log.L(ctx).Infof("successfully created unidentified call log entry: %#v", record)
 		}
 	}()
 
