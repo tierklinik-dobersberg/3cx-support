@@ -35,14 +35,15 @@ func NewCustomerResolver(db Database, cli customerv1connect.CustomerServiceClien
 	}
 }
 
-func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*pbx3cxv1.CallEntry, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*pbx3cxv1.CallEntry, []*customerv1.Customer, error) {
 
 	var wg sync.WaitGroup
 	errs := new(multierror.Error)
 
 	stream := cr.cli.SearchCustomerStream(ctx)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	resultChan, errChan := cr.db.StreamSearch(ctx, query)
 
@@ -87,7 +88,7 @@ L:
 			cr.recordsLock.Unlock()
 
 			// next, check if we need to fetch a customer record
-			if record.CustomerID != "" && record.CustomerSource == "" {
+			if record.CustomerID != "" {
 				cr.customerLock.Lock()
 				_, ok := cr.customers[record.CustomerID]
 				cr.customerLock.Unlock()
@@ -99,16 +100,33 @@ L:
 						cr.customers[record.CustomerID] = nil
 						cr.customerLock.Unlock()
 
-						if err := stream.Send(&customerv1.SearchCustomerRequest{
-							Queries: []*customerv1.CustomerQuery{
-								{
-									Query: &customerv1.CustomerQuery_Id{
-										Id: record.CustomerID,
+						if record.CustomerSource == "" {
+							if err := stream.Send(&customerv1.SearchCustomerRequest{
+								Queries: []*customerv1.CustomerQuery{
+									{
+										Query: &customerv1.CustomerQuery_Id{
+											Id: record.CustomerID,
+										},
 									},
 								},
-							},
-						}); err != nil {
-							return nil, fmt.Errorf("failed to send query: %w", err)
+							}); err != nil {
+								return nil, fmt.Errorf("failed to send query: %w", err)
+							}
+						} else {
+							if err := stream.Send(&customerv1.SearchCustomerRequest{
+								Queries: []*customerv1.CustomerQuery{
+									{
+										Query: &customerv1.CustomerQuery_InternalReference{
+											InternalReference: &customerv1.InternalReferenceQuery{
+												Importer: record.CustomerSource,
+												Ref:      record.CustomerID,
+											},
+										},
+									},
+								},
+							}); err != nil {
+								return nil, fmt.Errorf("failed to send query: %w", err)
+							}
 						}
 
 						wg.Add(1)
@@ -130,17 +148,16 @@ L:
 	wg.Wait()
 
 	results := make([]*pbx3cxv1.CallEntry, len(cr.records))
-
 	for idx, r := range cr.records {
-		pb := r.ToProto()
-
-		if r.CustomerID != "" && r.CustomerSource == "" {
-			c := cr.customers[r.CustomerID]
-			pb.Customer = c
-		}
-
-		results[idx] = pb
+		results[idx] = r.ToProto()
 	}
 
-	return results, errs.ErrorOrNil()
+	customers := make([]*customerv1.Customer, 0, len(cr.customers))
+	for _, c := range cr.customers {
+		if c != nil {
+			customers = append(customers, c)
+		}
+	}
+
+	return results, customers, errs.ErrorOrNil()
 }

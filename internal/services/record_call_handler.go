@@ -87,7 +87,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		if strings.ToLower(record.Caller) != "anonymous" {
 			res, err := svc.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
 				Queries: []*customerv1.CustomerQuery{
-					&customerv1.CustomerQuery{
+					{
 						Query: &customerv1.CustomerQuery_PhoneNumber{
 							PhoneNumber: record.Caller,
 						},
@@ -152,12 +152,13 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 
 	resolver := database.NewCustomerResolver(svc.CallLogDB, svc.Customer)
 
-	results, err := resolver.Query(ctx, query)
+	results, customers, err := resolver.Query(ctx, query)
 	if len(results) == 0 && err != nil {
 		return nil, err
 	}
 
 	return connect.NewResponse(&pbx3cxv1.SearchCallLogsResponse{
-		Results: results,
+		Results:   results,
+		Customers: customers,
 	}), nil
 }
