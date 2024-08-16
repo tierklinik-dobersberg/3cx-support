@@ -21,7 +21,7 @@ type CustomerResolver struct {
 	db  Database
 	cli customerv1connect.CustomerServiceClient
 
-	inflight singleflight.Group
+	inflight *singleflight.Group
 
 	customerLock sync.Mutex
 	customers    map[string]*customerv1.Customer
@@ -32,8 +32,10 @@ type CustomerResolver struct {
 
 func NewCustomerResolver(db Database, cli customerv1connect.CustomerServiceClient) *CustomerResolver {
 	return &CustomerResolver{
-		db:  db,
-		cli: cli,
+		db:        db,
+		cli:       cli,
+		inflight:  &singleflight.Group{},
+		customers: make(map[string]*customerv1.Customer),
 	}
 }
 
