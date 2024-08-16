@@ -30,6 +30,8 @@ type Database interface {
 	Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error)
 
 	StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error)
+
+	FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error)
 }
 
 type database struct {
@@ -101,6 +103,31 @@ func (db *database) CreateUnidentified(ctx context.Context, record structs.CallL
 	}
 
 	return nil
+}
+
+func (db *database) FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error) {
+	res, err := db.collection.Distinct(ctx, "caller", bson.M{
+		"customerSource": bson.M{
+			"$exists": false,
+		},
+		"customerID": bson.M{
+			"$exists": false,
+		},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var result = make([]string, 0, len(res))
+
+	for _, r := range res {
+		if s, ok := r.(string); ok {
+			result = append(result, s)
+		}
+	}
+
+	return result, nil
 }
 
 func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallLog) error {
