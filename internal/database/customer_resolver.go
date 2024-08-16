@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
@@ -70,6 +71,10 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 				cr.customers[c.Customer.Id] = c.Customer
 			}
 			cr.customerLock.Unlock()
+
+			for _, c := range msg.Results {
+				log.L(ctx).Infof("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
+			}
 		}
 	}()
 
@@ -105,6 +110,8 @@ L:
 						cr.customerLock.Lock()
 						cr.customers[record.CustomerID] = nil
 						cr.customerLock.Unlock()
+
+						logrus.Infof("sending customer query for %q/%q", record.CustomerSource, record.CustomerID)
 
 						if record.CustomerSource == "" {
 							if err := stream.Send(&customerv1.SearchCustomerRequest{

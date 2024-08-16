@@ -85,6 +85,8 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 
 		// try to search the customer record
 		if strings.ToLower(record.Caller) != "anonymous" {
+			log.L(ctx).Infof("trying to get customer for number %s", record.Caller)
+
 			res, err := svc.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
 				Queries: []*customerv1.CustomerQuery{
 					{
