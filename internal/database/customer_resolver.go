@@ -44,12 +44,13 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 	var wg sync.WaitGroup
 	errs := new(multierror.Error)
 
-	stream := cr.cli.SearchCustomerStream(ctx)
+	// this one cancels as soon as the h2 stream ends
+	resultChan, errChan := cr.db.StreamSearch(ctx, query)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	resultChan, errChan := cr.db.StreamSearch(ctx, query)
+	stream := cr.cli.SearchCustomerStream(ctx)
 
 	go func() {
 		defer log.L(ctx).Infof("receive loop finished")
@@ -66,6 +67,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 				return
 			}
 
+			// for each sent request, we add 1 to the waitgroup
 			wg.Done()
 
 			cr.customerLock.Lock()
