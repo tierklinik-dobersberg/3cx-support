@@ -139,6 +139,8 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 
 		if err := stream.CloseRequest(); err != nil {
 			log.L(ctx).Errorf("failed to close request side of stream: %s", err)
+		} else {
+			log.L(ctx).Infof("send side closed succesfully")
 		}
 	}()
 
