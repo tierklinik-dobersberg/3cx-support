@@ -44,10 +44,10 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 	var wg sync.WaitGroup
 	errs := new(multierror.Error)
 
+	stream := cr.cli.SearchCustomerStream(ctx)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	stream := cr.cli.SearchCustomerStream(ctx)
 
 	resultChan, errChan := cr.db.StreamSearch(ctx, query)
 
