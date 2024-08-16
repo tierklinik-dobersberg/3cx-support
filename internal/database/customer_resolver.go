@@ -113,6 +113,7 @@ L:
 						cr.customerLock.Unlock()
 
 						logrus.Infof("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
+						wg.Add(1)
 
 						if record.CustomerSource == "" {
 							if err := stream.Send(&customerv1.SearchCustomerRequest{
@@ -124,6 +125,7 @@ L:
 									},
 								},
 							}); err != nil {
+								wg.Done()
 								return nil, fmt.Errorf("failed to send query: %w", err)
 							}
 						} else {
@@ -139,11 +141,11 @@ L:
 									},
 								},
 							}); err != nil {
+								wg.Done()
 								return nil, fmt.Errorf("failed to send query: %w", err)
 							}
 						}
 
-						wg.Add(1)
 						return nil, nil
 					})
 					if err != nil {
@@ -163,6 +165,10 @@ L:
 
 			errs.Errors = append(errs.Errors, err)
 		}
+	}
+
+	if err := stream.CloseRequest(); err != nil {
+		log.L(ctx).Errorf("failed to close request side of stream: %s", err)
 	}
 
 	log.L(ctx).Infof("waiting for goroutines to finish")
