@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
@@ -120,4 +121,43 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 	}()
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request[pbx3cxv1.SearchCallLogsRequest]) (*connect.Response[pbx3cxv1.SearchCallLogsResponse], error) {
+	query := new(database.SearchQuery)
+
+	if req.Msg.CustomerRef != nil {
+		query.Customer(req.Msg.CustomerRef.Source, req.Msg.CustomerRef.Id)
+	}
+
+	if tr := req.Msg.TimeRange; tr != nil {
+		switch {
+		case tr.From.IsValid() && tr.To.IsValid():
+			query.Between(tr.From.AsTime(), tr.To.AsTime())
+
+		case tr.From.IsValid():
+			query.After(tr.From.AsTime())
+
+		case tr.To.IsValid():
+			query.Before(tr.To.AsTime())
+		}
+
+	} else if req.Msg.Date != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", req.Msg.Date, time.Local)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for date: %w", err))
+		}
+		query.AtDate(parsed)
+	}
+
+	resolver := database.NewCustomerResolver(svc.CallLogDB, svc.Customer)
+
+	results, err := resolver.Query(ctx, query)
+	if len(results) == 0 && err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&pbx3cxv1.SearchCallLogsResponse{
+		Results: results,
+	}), nil
 }

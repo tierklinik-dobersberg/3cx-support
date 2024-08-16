@@ -1,0 +1,146 @@
+package database
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+
+	"github.com/hashicorp/go-multierror"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
+	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
+	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
+	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"golang.org/x/sync/singleflight"
+)
+
+type CustomerResolver struct {
+	db  Database
+	cli customerv1connect.CustomerServiceClient
+
+	inflight singleflight.Group
+
+	customerLock sync.Mutex
+	customers    map[string]*customerv1.Customer
+
+	recordsLock sync.Mutex
+	records     []structs.CallLog
+}
+
+func NewCustomerResolver(db Database, cli customerv1connect.CustomerServiceClient) *CustomerResolver {
+	return &CustomerResolver{
+		db:  db,
+		cli: cli,
+	}
+}
+
+func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*pbx3cxv1.CallEntry, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errs := new(multierror.Error)
+
+	stream := cr.cli.SearchCustomerStream(ctx)
+
+	resultChan, errChan := cr.db.StreamSearch(ctx, query)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			msg, err := stream.Receive()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					cancel()
+				}
+
+				return
+			}
+
+			wg.Done()
+
+			cr.customerLock.Lock()
+			for _, c := range msg.Results {
+				cr.customers[c.Customer.Id] = c.Customer
+			}
+			cr.customerLock.Unlock()
+		}
+	}()
+
+L:
+	for {
+		select {
+		case <-ctx.Done():
+			break L
+
+		case record, ok := <-resultChan:
+			if !ok {
+				break L
+			}
+
+			// first, append the record to the result list
+			cr.recordsLock.Lock()
+			cr.records = append(cr.records, record)
+			cr.recordsLock.Unlock()
+
+			// next, check if we need to fetch a customer record
+			if record.CustomerID != "" && record.CustomerSource == "" {
+				cr.customerLock.Lock()
+				_, ok := cr.customers[record.CustomerID]
+				cr.customerLock.Unlock()
+
+				if !ok {
+					// search for the customer
+					cr.inflight.Do(record.CustomerID, func() (interface{}, error) {
+						cr.customerLock.Lock()
+						cr.customers[record.CustomerID] = nil
+						cr.customerLock.Unlock()
+
+						if err := stream.Send(&customerv1.SearchCustomerRequest{
+							Queries: []*customerv1.CustomerQuery{
+								{
+									Query: &customerv1.CustomerQuery_Id{
+										Id: record.CustomerID,
+									},
+								},
+							},
+						}); err != nil {
+							return nil, fmt.Errorf("failed to send query: %w", err)
+						}
+
+						wg.Add(1)
+
+						return nil, nil
+					})
+				}
+			}
+
+		case err, ok := <-errChan:
+			if !ok {
+				break L
+			}
+
+			errs.Errors = append(errs.Errors, err)
+		}
+	}
+
+	wg.Wait()
+
+	results := make([]*pbx3cxv1.CallEntry, len(cr.records))
+
+	for idx, r := range cr.records {
+		pb := r.ToProto()
+
+		if r.CustomerID != "" && r.CustomerSource == "" {
+			c := cr.customers[r.CustomerID]
+			pb.Customer = c
+		}
+
+		results[idx] = pb
+	}
+
+	return results, errs.ErrorOrNil()
+}

@@ -257,50 +257,6 @@ func (svc *CallService) GetLogsForCustomer(ctx context.Context, req *connect.Req
 	return connect.NewResponse(res), nil
 }
 
-func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request[pbx3cxv1.SearchCallLogsRequest]) (*connect.Response[pbx3cxv1.SearchCallLogsResponse], error) {
-	query := new(database.SearchQuery)
-
-	if req.Msg.CustomerRef != nil {
-		query.Customer(req.Msg.CustomerRef.Source, req.Msg.CustomerRef.Id)
-	}
-
-	if tr := req.Msg.TimeRange; tr != nil {
-		switch {
-		case tr.From.IsValid() && tr.To.IsValid():
-			query.Between(tr.From.AsTime(), tr.To.AsTime())
-
-		case tr.From.IsValid():
-			query.After(tr.From.AsTime())
-
-		case tr.To.IsValid():
-			query.Before(tr.To.AsTime())
-		}
-
-	} else if req.Msg.Date != "" {
-		parsed, err := time.ParseInLocation("2006-01-02", req.Msg.Date, time.Local)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid value for date: %w", err))
-		}
-		query.AtDate(parsed)
-	}
-
-	logs, err := svc.CallLogDB.Search(ctx, query)
-	if err != nil {
-		log.L(ctx).Errorf("failed to search for call log entries: %s", query.String())
-		return nil, err
-	}
-
-	res := &pbx3cxv1.SearchCallLogsResponse{
-		Results: make([]*pbx3cxv1.CallEntry, len(logs)),
-	}
-
-	for idx, log := range logs {
-		res.Results[idx] = log.ToProto()
-	}
-
-	return connect.NewResponse(res), nil
-}
-
 func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.Time, ignoreOverwrites bool, inboundNumber string) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
 	var numbers []string
 

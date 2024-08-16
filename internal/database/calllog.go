@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/nyaruka/phonenumbers"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
@@ -27,6 +28,8 @@ type Database interface {
 
 	// Search searches for all records that match query.
 	Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error)
+
+	StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error)
 }
 
 type database struct {
@@ -181,22 +184,68 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 }
 
 func (db *database) Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error) {
+	results, err := db.StreamSearch(ctx, query)
+
+	var (
+		all  []structs.CallLog
+		errs = new(multierror.Error)
+	)
+
+L:
+	for {
+		select {
+		case res, ok := <-results:
+			if !ok {
+				break
+			}
+
+			all = append(all, res)
+		case e, ok := <-err:
+			if !ok {
+				break
+			}
+
+			errs.Errors = append(errs.Errors, e)
+		case <-ctx.Done():
+			break L
+		}
+	}
+
+	return all, errs.ErrorOrNil()
+}
+
+func (db *database) StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error) {
+
+	results := make(chan structs.CallLog, 1)
+	errs := make(chan error, 1)
+
 	filter := query.Build()
 	log.L(ctx).Infof("Searching callogs for %+v", filter)
 
 	opts := options.Find().SetSort(bson.M{"date": -1})
 	cursor, err := db.collection.Find(ctx, filter, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve documents: %w", err)
-	}
-	defer cursor.Close(ctx)
+		errs <- fmt.Errorf("failed to retrieve documents: %w", err)
 
-	var records []structs.CallLog
-	if err := cursor.All(ctx, &records); err != nil {
-		return nil, fmt.Errorf("failed to decode documents: %w", err)
+		return results, errs
 	}
 
-	return records, nil
+	go func() {
+		defer close(results)
+		defer close(errs)
+		defer cursor.Close(ctx)
+		for cursor.Next(ctx) {
+			var result structs.CallLog
+
+			if err := cursor.Decode(&result); err != nil {
+				errs <- err
+			} else {
+				results <- result
+			}
+		}
+	}()
+
+	return results, errs
 }
 
 func (db *database) perpareRecord(ctx context.Context, record *structs.CallLog) error {
