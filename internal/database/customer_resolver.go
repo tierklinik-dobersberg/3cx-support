@@ -2,9 +2,7 @@ package database
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -47,6 +45,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 
 	// this one cancels as soon as the h2 stream ends
 	resultChan, errChan := cr.db.StreamSearch(ctx, query)
+
 	stream := cr.cli.SearchCustomerStream(ctx)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -58,10 +57,6 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		for {
 			msg, err := stream.Receive()
 			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					cancel()
-				}
-
 				log.L(ctx).Errorf("failed to receive message: %s", err)
 
 				return
@@ -70,11 +65,13 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 			// for each sent request, we add 1 to the waitgroup
 			wg.Done()
 
+			log.L(ctx).Infof("waiting for customer lock")
 			cr.customerLock.Lock()
 			for _, c := range msg.Results {
 				cr.customers[c.Customer.Id] = c.Customer
 			}
 			cr.customerLock.Unlock()
+			log.L(ctx).Infof("customer map updated")
 
 			for _, c := range msg.Results {
 				log.L(ctx).Infof("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
@@ -86,7 +83,7 @@ L:
 	for {
 		select {
 		case <-ctx.Done():
-			log.L(ctx).Infof("context cancelled")
+			log.L(ctx).Infof("request context cancelled")
 
 			break L
 
@@ -115,7 +112,7 @@ L:
 						cr.customers[record.CustomerID] = nil
 						cr.customerLock.Unlock()
 
-						logrus.Infof("sending customer query for %q/%q", record.CustomerSource, record.CustomerID)
+						logrus.Infof("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
 
 						if record.CustomerSource == "" {
 							if err := stream.Send(&customerv1.SearchCustomerRequest{
@@ -177,11 +174,14 @@ L:
 
 	wg.Wait()
 
+	log.L(ctx).Infof("waiting for customer and record locks")
 	cr.customerLock.Lock()
 	defer cr.customerLock.Unlock()
 
 	cr.recordsLock.Lock()
 	defer cr.recordsLock.Unlock()
+
+	log.L(ctx).Infof("prepareing search result")
 
 	results := make([]*pbx3cxv1.CallEntry, len(cr.records))
 	for idx, r := range cr.records {
