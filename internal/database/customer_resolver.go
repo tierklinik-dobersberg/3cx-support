@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
@@ -56,13 +55,13 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		for {
 			select {
 			case <-ctx.Done():
-				log.L(ctx).Infof("request context cancelled")
+				log.L(ctx).Debug("request context cancelled")
 
 				break L
 
 			case record, ok := <-resultChan:
 				if !ok {
-					log.L(ctx).Infof("result channel closed")
+					log.L(ctx).Debug("result channel closed")
 
 					break L
 				}
@@ -85,7 +84,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 							cr.customers[record.CustomerID] = nil
 							cr.customerLock.Unlock()
 
-							logrus.Infof("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
+							log.L(ctx).Debug("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
 
 							if record.CustomerSource == "" {
 								if err := stream.Send(&customerv1.SearchCustomerRequest{
@@ -128,7 +127,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 
 			case err, ok := <-errChan:
 				if !ok {
-					log.L(ctx).Infof("error channel closed")
+					log.L(ctx).Debug("error channel closed")
 
 					break L
 				}
@@ -140,7 +139,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		if err := stream.CloseRequest(); err != nil {
 			log.L(ctx).Errorf("failed to close request side of stream: %s", err)
 		} else {
-			log.L(ctx).Infof("send side closed succesfully")
+			log.L(ctx).Debug("send side closed succesfully")
 		}
 	}()
 
@@ -161,11 +160,11 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		cr.customerLock.Unlock()
 
 		for _, c := range msg.Results {
-			log.L(ctx).Infof("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
+			log.L(ctx).Debugf("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
 		}
 	}
 
-	log.L(ctx).Infof("search stream completed")
+	log.L(ctx).Debug("search stream completed")
 
 	cr.customerLock.Lock()
 	defer cr.customerLock.Unlock()
@@ -173,7 +172,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 	cr.recordsLock.Lock()
 	defer cr.recordsLock.Unlock()
 
-	log.L(ctx).Infof("prepareing search result")
+	log.L(ctx).Debug("prepareing search result")
 
 	results := make([]*pbx3cxv1.CallEntry, len(cr.records))
 	for idx, r := range cr.records {
