@@ -223,7 +223,7 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 			return fmt.Errorf("failed to find and replace document %s: %w", record.ID, result.Err())
 		}
 
-		log.Infof("replaced unidentified calllog for %s with customer-record for %s:%s", record.Caller, record.CustomerSource, record.CustomerID)
+		log.Infof("replaced unidentified calllog for %s with customer-record for %s:%s: %v", record.Caller, record.CustomerSource, record.CustomerID, record)
 	} else {
 		_, err := db.collection.InsertOne(ctx, record)
 		if err != nil {
