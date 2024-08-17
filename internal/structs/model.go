@@ -44,9 +44,33 @@ type CallLog struct {
 
 	// CallID Is the internal ID of the call.
 	CallID string `json:"callID,omitempty" bson:"callID,omitempty"`
+
+	QueueExtension string `json:"queueExtension,omitempty" bson:"queueExtension,omitempty"`
+	Direction      string `json:"direction" bson:"direction"`
 }
 
 func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
+	var direction pbx3cxv1.CallDirection
+	switch log.Direction {
+	case "Inbound":
+		direction = pbx3cxv1.CallDirection_CALL_DIRECTION_INBOUND
+
+	case "Outbound":
+		direction = pbx3cxv1.CallDirection_CALL_DIRECTION_OUTBOUND
+	}
+
+	var status pbx3cxv1.CallStatus
+	switch log.CallType {
+	case "Inbound":
+		status = pbx3cxv1.CallStatus_CALL_STATUS_INBOUND
+	case "Outbound":
+		status = pbx3cxv1.CallStatus_CALL_STATUS_OUTBOUND
+	case "Missed":
+		status = pbx3cxv1.CallStatus_CALL_STATUS_MISSED
+	case "Notanswered":
+		status = pbx3cxv1.CallStatus_CALL_STATUS_NOTANSWERED
+	}
+
 	return &pbx3cxv1.CallEntry{
 		Id:             log.ID.Hex(),
 		Caller:         log.Caller,
@@ -60,5 +84,8 @@ func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
 		Error:          log.Error,
 		TransferTarget: log.TransferTarget,
 		AcceptedAgent:  log.Agent,
+		QueueExtension: log.QueueExtension,
+		Direction:      direction,
+		Status:         status,
 	}
 }

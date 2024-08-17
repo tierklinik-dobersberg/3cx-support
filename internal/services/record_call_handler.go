@@ -26,6 +26,8 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 		CallType:       msg.CallType,
 		CustomerID:     msg.CustomerId,
 		CustomerSource: msg.CustomerSource,
+		QueueExtension: msg.QueueExtension,
+		Direction:      msg.Direction,
 	}
 
 	if msg.Duration != "" {
