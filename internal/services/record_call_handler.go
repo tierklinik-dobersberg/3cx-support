@@ -71,6 +71,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		TransferTarget: transferTo,
 		TransferFrom:   transferFrom,
 		CallID:         callID,
+		Direction:      "Inbound",
 	}
 
 	if isError != "" {
