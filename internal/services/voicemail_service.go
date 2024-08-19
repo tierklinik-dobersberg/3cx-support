@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/mennanov/fmutils"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
@@ -47,9 +49,15 @@ func (svc *VoiceMailService) ListMailboxes(ctx context.Context, req *connect.Req
 		return nil, err
 	}
 
-	return connect.NewResponse(&pbx3cxv1.ListMailboxesResponse{
+	response := &pbx3cxv1.ListMailboxesResponse{
 		Mailboxes: boxes,
-	}), nil
+	}
+
+	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
+		fmutils.Filter(response, paths)
+	}
+
+	return connect.NewResponse(response), nil
 }
 
 func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.ListVoiceMailsRequest]) (*connect.Response[pbx3cxv1.ListVoiceMailsResponse], error) {
@@ -59,11 +67,28 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 	}
 
 	ids := make(map[string]struct{})
-	for _, r := range res {
-		if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
-			ids[c.Customer.Id] = struct{}{}
+
+	fetchCustomers := true
+	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
+		fetchCustomers = false
+
+		for _, p := range paths {
+			if strings.HasPrefix(p, "customers") || strings.HasPrefix("voicemails.caller") {
+				fetchCustomers = true
+				break
+			}
 		}
 	}
+
+	if fetchCustomers {
+		for _, r := range res {
+			if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
+				ids[c.Customer.Id] = struct{}{}
+			}
+		}
+	}
+
+	var customers []*customerv1.Customer
 
 	if len(ids) > 0 {
 		var queries []*customerv1.CustomerQuery
@@ -85,8 +110,10 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 			slog.ErrorContext(ctx, "failed to search customers", slog.Any("error", err.Error()))
 		} else {
 			m := make(map[string]*customerv1.Customer, len(customerResult.Msg.Results))
+			customers = make([]*customerv1.Customer, len(customerResult.Msg.Results))
 
-			for _, c := range customerResult.Msg.Results {
+			for idx, c := range customerResult.Msg.Results {
+				customers[idx] = c.Customer
 				m[c.Customer.Id] = c.Customer
 			}
 
@@ -103,9 +130,16 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 		}
 	}
 
-	return connect.NewResponse(&pbx3cxv1.ListVoiceMailsResponse{
+	response := &pbx3cxv1.ListVoiceMailsResponse{
 		Voicemails: res,
-	}), nil
+		Customers:  customers,
+	}
+
+	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
+		fmutils.Filter(response, paths)
+	}
+
+	return connect.NewResponse(response), nil
 }
 
 func (svc *VoiceMailService) MarkVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.MarkVoiceMailsRequest]) (*connect.Response[pbx3cxv1.MarkVoiceMailsResponse], error) {
