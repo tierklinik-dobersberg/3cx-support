@@ -57,6 +57,10 @@ func (db *mailboxDatabase) setup(ctx context.Context) error {
 func (db *mailboxDatabase) LoadState(ctx context.Context, id string) (*mailsync.State, error) {
 	res := db.syncState.FindOne(ctx, bson.M{"name": id})
 	if err := res.Err(); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return &mailsync.State{}, nil
+		}
+
 		return nil, err
 	}
 
