@@ -9,6 +9,7 @@ require (
 	github.com/bufbuild/protovalidate-go v0.6.4
 	github.com/ghodss/yaml v1.0.0
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/mennanov/fmutils v0.3.0
 	github.com/mxk/go-imap v0.0.0-20150429134902-531c36c3f12d
 	github.com/nyaruka/phonenumbers v1.4.0
 	github.com/sethvargo/go-envconfig v1.1.0
