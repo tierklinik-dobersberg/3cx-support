@@ -50,8 +50,7 @@ func (q *SearchQuery) CallerString(number string) *SearchQuery {
 // Caller matches all records where match the caller number.
 func (q *SearchQuery) Caller(number *phonenumbers.PhoneNumber) *SearchQuery {
 	q.
-		WhereIn("caller", phonenumbers.Format(number, phonenumbers.INTERNATIONAL)).
-		WhereIn("caller", phonenumbers.Format(number, phonenumbers.NATIONAL))
+		WhereIn("caller", phonenumbers.Format(number, phonenumbers.INTERNATIONAL))
 	return q
 }
 
@@ -65,16 +64,14 @@ func (q *SearchQuery) InboundNumberString(number string) *SearchQuery {
 // InboundNumber matches all records where the inbound-number matches number.
 func (q *SearchQuery) InboundNumber(number *phonenumbers.PhoneNumber) *SearchQuery {
 	q.
-		WhereIn("inboundNumber", phonenumbers.Format(number, phonenumbers.INTERNATIONAL)).
-		WhereIn("inboundNumber", phonenumbers.Format(number, phonenumbers.NATIONAL))
+		WhereIn("inboundNumber", phonenumbers.Format(number, phonenumbers.INTERNATIONAL))
 	return q
 }
 
 // Customer matches all records that are associated with customer.
-func (q *SearchQuery) Customer(source, id string) *SearchQuery {
+func (q *SearchQuery) Customer(id string) *SearchQuery {
 	q.
-		WhereIn("customerID", id).
-		WhereIn("customerSource", source)
+		WhereIn("customerID", id)
 	return q
 }
 

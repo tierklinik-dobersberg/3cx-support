@@ -13,6 +13,7 @@ func main() {
 		cmds.GetCallLogCommand(root),
 		cmds.GetOnDutyCommand(root),
 		cmds.GetInboundNumbersCommand(root),
+		cmds.GetVoiceMailCommand(root),
 	)
 
 	if err := root.Execute(); err != nil {

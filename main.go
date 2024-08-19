@@ -46,6 +46,8 @@ func main() {
 		logrus.Fatalf("failed to prepare protovalidator: %s", err)
 	}
 
+	// TODO(ppacher): privacy-interceptor
+
 	authInterceptor := auth.NewAuthAnnotationInterceptor(
 		protoregistry.GlobalFiles,
 		auth.NewIDMRoleResolver(providers.Roles),

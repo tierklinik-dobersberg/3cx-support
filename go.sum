@@ -65,11 +65,17 @@ github.com/mitchellh/go-server-timing v1.0.1/go.mod h1:Mo6GKi9FSLwWFAMn3bqVPWe20
 github.com/mitchellh/mapstructure v0.0.0-20170523030023-d0303fe80992/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
 github.com/montanaflynn/stats v0.7.1 h1:etflOAAHORrCC44V+aR6Ftzort912ZU+YLiSTuV8eaE=
 github.com/montanaflynn/stats v0.7.1/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
+github.com/mxk/go-imap v0.0.0-20150429134902-531c36c3f12d h1:+DgqA2tuWi/8VU+gVgBAa7+WZrnFbPKhQWbKBB54cVs=
+github.com/mxk/go-imap v0.0.0-20150429134902-531c36c3f12d/go.mod h1:xacC5qXZnL/ooiitVoe3BtI1OotFTqi5zICBs9J5Fyk=
 github.com/nyaruka/phonenumbers v1.4.0 h1:ddhWiHnHCIX3n6ETDA58Zq5dkxkjlvgrDWM2OHHPCzU=
 github.com/nyaruka/phonenumbers v1.4.0/go.mod h1:gv+CtldaFz+G3vHHnasBSirAi3O2XLqZzVWz4V1pl2E=
+github.com/paulrosania/go-charset v0.0.0-20190326053356-55c9d7a5834c h1:P6XGcuPTigoHf4TSu+3D/7QOQ1MbL6alNwrGhcW7sKw=
+github.com/paulrosania/go-charset v0.0.0-20190326053356-55c9d7a5834c/go.mod h1:YnNlZP7l4MhyGQ4CBRwv6ohZTPrUJJZtEv4ZgADkbs4=
 github.com/pelletier/go-toml v1.0.1-0.20170904195809-1d6b12b7cb29/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/ppacher/system-conf v0.7.4 h1:6pwPDvgJj9v9BXDzibP+k62/ZHI+Oipk5hNxQpXSUoQ=
+github.com/ppacher/system-conf v0.7.4/go.mod h1:UTcn/7lTkcZaCjXpWCz/d1iYG0nn5CnOryTImTlA/BY=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
 github.com/rs/cors v1.11.0 h1:0B9GE/r9Bc2UxRMMtymBkHTenPkHDv0CW4Y98GBY+po=
@@ -81,6 +87,8 @@ github.com/sethvargo/go-envconfig v1.1.0 h1:cWZiJxeTm7AlCvzGXrEXaSTCNgip5oJepekh
 github.com/sethvargo/go-envconfig v1.1.0/go.mod h1:JLd0KFWQYzyENqnEPWWZ49i4vzZo/6nRidxI8YvGiHw=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
+github.com/sloonz/go-qprintable v0.0.0-20160203160305-775b3a4592d5 h1:kr3of2TY0avjMhryOvEOUExpDF5yYRs3PFUGpwsawUw=
+github.com/sloonz/go-qprintable v0.0.0-20160203160305-775b3a4592d5/go.mod h1:rvsMTVl5yyd7liGH3cxu5eRjfNcC1WkSKe4HBSZ3ZA4=
 github.com/spf13/afero v0.0.0-20170901052352-ee1bd8ee15a1/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=
 github.com/spf13/cast v1.1.0/go.mod h1:r2rcYCSwa1IExKTDiTfzaxqT2FNHs8hODu4LnUfgKEg=
 github.com/spf13/cobra v1.8.1 h1:e5/vxKd/rZsfSJMUX1agtjeTDf+qv1/JdBF8gg5k9ZM=
@@ -96,6 +104,7 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
+github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
@@ -110,6 +119,12 @@ github.com/tierklinik-dobersberg/apis v0.0.31-0.20240817082604-e49e982e11e7 h1:2
 github.com/tierklinik-dobersberg/apis v0.0.31-0.20240817082604-e49e982e11e7/go.mod h1:btvcOqRgDFHWesLlp9ZWdZXhBBjS/ZiS8ZuPDgnx6r8=
 github.com/tierklinik-dobersberg/apis v0.0.31-0.20240817083627-72f76f19da16 h1:58iNAc56HV7RfytIyBW+tLqGwo6HvM964VFUS2yO8MU=
 github.com/tierklinik-dobersberg/apis v0.0.31-0.20240817083627-72f76f19da16/go.mod h1:btvcOqRgDFHWesLlp9ZWdZXhBBjS/ZiS8ZuPDgnx6r8=
+github.com/tierklinik-dobersberg/apis v0.0.31-0.20240819083207-9c2d2d4810ad h1:6F6P1FZk+H8EJ3bnZ28O3pIE5FTZ8efJNQINDZI55M0=
+github.com/tierklinik-dobersberg/apis v0.0.31-0.20240819083207-9c2d2d4810ad/go.mod h1:kOPE91BWEqcG2EohSjd4lTp5OIZ9ElDC9zuUbkwVUMk=
+github.com/tierklinik-dobersberg/logger v0.2.0 h1:LyLxhM/o5+nTzDq1bzrrEWh7Q9+PVKEGDdf4NOtTnsk=
+github.com/tierklinik-dobersberg/logger v0.2.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=
+github.com/tierklinik-dobersberg/mailbox v0.0.4 h1:x5iNX1ARiCXW05PY/0dgxESOw8jHBtpFpuqvnCWjdSo=
+github.com/tierklinik-dobersberg/mailbox v0.0.4/go.mod h1:b11ERiacP9Jt7kkn/B1+N0EADQVXlE/jLJq4iz7YIBI=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2 h1:FHX5I5B4i4hKRVRBCFRxq1iQRej7WO3hhBuJf+UUySY=
@@ -121,6 +136,7 @@ github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78/go.mod h1:aL8wCCfTfS
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.mongodb.org/mongo-driver v1.16.0 h1:tpRsfBJMROVHKpdGyc1BBEzzjDUWjItxbVSZ8Ls4BQ4=
 go.mongodb.org/mongo-driver v1.16.0/go.mod h1:oB6AhJQvFQL4LEHyXi6aJzQJtBiTQHiAd83l0GdFaiw=
+go.mongodb.org/mongo-driver v1.16.1/go.mod h1:oB6AhJQvFQL4LEHyXi6aJzQJtBiTQHiAd83l0GdFaiw=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.26.0 h1:RrRspgV4mU+YwB4FYnuBoKsUapNIL5cohGAmSH3azsw=

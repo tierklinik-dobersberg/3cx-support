@@ -29,9 +29,12 @@ type Database interface {
 	// Search searches for all records that match query.
 	Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error)
 
+	Search2(ctx context.Context, opts ...QueryOption) ([]structs.CallLog, error)
+
 	StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error)
 
 	FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error)
+
 	UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error
 }
 
@@ -87,6 +90,35 @@ func (db *database) setup(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (db *database) Search(ctx context.Context, search *SearchQuery) ([]structs.CallLog, error) {
+	resCh, errCh := db.StreamSearch(ctx, search)
+
+	var (
+		results []structs.CallLog
+		errors  = new(multierror.Error)
+	)
+
+L:
+	for {
+		select {
+		case r, ok := <-resCh:
+			if !ok {
+				break L
+			}
+			results = append(results, r)
+
+		case e, ok := <-errCh:
+			if !ok {
+				break L
+			}
+
+			errors.Errors = append(errors.Errors, e)
+		}
+	}
+
+	return results, errors.ErrorOrNil()
 }
 
 func (db *database) CreateUnidentified(ctx context.Context, record structs.CallLog) error {
@@ -236,35 +268,24 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 	return nil
 }
 
-func (db *database) Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error) {
-	results, err := db.StreamSearch(ctx, query)
+func (db *database) Search2(ctx context.Context, opts ...QueryOption) ([]structs.CallLog, error) {
+	var q query
 
-	var (
-		all  []structs.CallLog
-		errs = new(multierror.Error)
-	)
-
-L:
-	for {
-		select {
-		case res, ok := <-results:
-			if !ok {
-				break
-			}
-
-			all = append(all, res)
-		case e, ok := <-err:
-			if !ok {
-				break
-			}
-
-			errs.Errors = append(errs.Errors, e)
-		case <-ctx.Done():
-			break L
-		}
+	for _, opt := range opts {
+		opt(&q)
 	}
 
-	return all, errs.ErrorOrNil()
+	res, err := db.collection.Find(ctx, q.build())
+	if err != nil {
+		return nil, err
+	}
+
+	var results []structs.CallLog
+	if err := res.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (db *database) StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error) {

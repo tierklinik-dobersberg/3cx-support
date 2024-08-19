@@ -239,7 +239,7 @@ func (svc *CallService) GetLogsForDate(ctx context.Context, req *connect.Request
 
 func (svc *CallService) GetLogsForCustomer(ctx context.Context, req *connect.Request[pbx3cxv1.GetLogsForCustomerRequest]) (*connect.Response[pbx3cxv1.GetLogsForCustomerResponse], error) {
 	query := new(database.SearchQuery).
-		Customer(req.Msg.Source, req.Msg.Id)
+		Customer(req.Msg.Id)
 
 	logs, err := svc.CallLogDB.Search(ctx, query)
 	if err != nil {

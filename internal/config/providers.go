@@ -22,8 +22,9 @@ type Providers struct {
 	Roles    idmv1connect.RoleServiceClient
 	Customer customerv1connect.CustomerServiceClient
 
-	CallLogDB   database.Database
-	OverwriteDB oncalloverwrite.Database
+	CallLogDB       database.Database
+	OverwriteDB     oncalloverwrite.Database
+	MailboxDatabase database.MailboxDatabase
 
 	Config Config
 }
@@ -51,15 +52,21 @@ func NewProviders(ctx context.Context, cfg Config) (*Providers, error) {
 		return nil, fmt.Errorf("failed to prepare overwrite db: %w", err)
 	}
 
+	mailboxDB, err := database.NewMailboxDatabase(ctx, mongoCli.Database(cfg.Database))
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare mailbox db: %w", err)
+	}
+
 	p := &Providers{
-		Roster:      rosterv1connect.NewRosterServiceClient(httpClient, cfg.RosterdURL),
-		Users:       idmv1connect.NewUserServiceClient(httpClient, cfg.IdmURL),
-		Notify:      idmv1connect.NewNotifyServiceClient(httpClient, cfg.IdmURL),
-		Roles:       idmv1connect.NewRoleServiceClient(httpClient, cfg.IdmURL),
-		Customer:    customerv1connect.NewCustomerServiceClient(cli.NewInsecureHttp2Client(), cfg.CustomerServiceURL),
-		Config:      cfg,
-		CallLogDB:   callogDB,
-		OverwriteDB: overwriteDB,
+		Roster:          rosterv1connect.NewRosterServiceClient(httpClient, cfg.RosterdURL),
+		Users:           idmv1connect.NewUserServiceClient(httpClient, cfg.IdmURL),
+		Notify:          idmv1connect.NewNotifyServiceClient(httpClient, cfg.IdmURL),
+		Roles:           idmv1connect.NewRoleServiceClient(httpClient, cfg.IdmURL),
+		Customer:        customerv1connect.NewCustomerServiceClient(cli.NewInsecureHttp2Client(), cfg.CustomerServiceURL),
+		Config:          cfg,
+		CallLogDB:       callogDB,
+		OverwriteDB:     overwriteDB,
+		MailboxDatabase: mailboxDB,
 	}
 
 	return p, nil

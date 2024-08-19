@@ -47,6 +47,10 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 	record.Date = date
 	record.AgentUserId = svc.getUserIdForAgent(ctx, record.Agent)
 
+	if record.Direction == "Outbound" && len(record.Caller) < 3 {
+		// TODO(ppacher): try to merge outbound call from queue->agent to an inbound number where caller->queue
+	}
+
 	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
 		return nil, err
 	}
@@ -134,7 +138,7 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 	query := new(database.SearchQuery)
 
 	if req.Msg.CustomerRef != nil {
-		query.Customer(req.Msg.CustomerRef.Source, req.Msg.CustomerRef.Id)
+		query.Customer(req.Msg.CustomerRef.Id)
 	}
 
 	if tr := req.Msg.TimeRange; tr != nil {

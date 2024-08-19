@@ -25,6 +25,7 @@ type Config struct {
 	UserPhoneExtensionKeys     []string `env:"PHONE_EXTENSION_KEYS" json:"phoneExtensionKeys"`
 	FailoverTransferTarget     string   `env:"FAILOVER_TRANSFER_TARGET" json:"failoverTransferTarget"`
 	DefaultOnCallInboundNumber string   `env:"DEFAULT_INBOUND_NUMBER" json:"defaultInboundNumber"`
+	VoiceMailStoragePath       string   `env:"STORAGE_PATH" json:"storagePath"`
 }
 
 func LoadConfig(ctx context.Context, path string) (*Config, error) {
@@ -80,6 +81,10 @@ func LoadConfig(ctx context.Context, path string) (*Config, error) {
 
 	if cfg.CustomerServiceURL == "" {
 		return nil, fmt.Errorf("missing customerdUrl config setting")
+	}
+
+	if cfg.VoiceMailStoragePath == "" {
+		return nil, fmt.Errorf("missing voice-mail storage path")
 	}
 
 	return &cfg, nil
