@@ -73,7 +73,7 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 		fetchCustomers = false
 
 		for _, p := range paths {
-			if strings.HasPrefix(p, "customers") || strings.HasPrefix(p, "voicemails.caller") {
+			if strings.HasPrefix(p, "customers") || strings.HasPrefix(p, "voicemails.customers") || p == "voicemails" {
 				fetchCustomers = true
 				break
 			}
