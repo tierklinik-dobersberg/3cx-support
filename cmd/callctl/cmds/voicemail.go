@@ -11,6 +11,7 @@ import (
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/cli"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -88,6 +89,7 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		to         string
 		caller     string
 		customerId string
+		paths      []string
 	)
 
 	cmd := &cobra.Command{
@@ -97,6 +99,9 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 			req := &pbx3cxv1.ListVoiceMailsRequest{
 				Mailbox: args[0],
 				Filter:  &pbx3cxv1.VoiceMailFilter{},
+				View: &fieldmaskpb.FieldMask{
+					Paths: paths,
+				},
 			}
 
 			if cmd.Flag("unseen").Changed {
@@ -154,6 +159,7 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		f.BoolVar(&unseen, "unseen", true, "")
 		f.StringVar(&from, "from", "", "")
 		f.StringVar(&to, "to", "", "")
+		f.StringSliceVar(&paths, "field", nil, "")
 	}
 
 	return cmd
