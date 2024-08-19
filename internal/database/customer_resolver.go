@@ -84,7 +84,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 							cr.customers[record.CustomerID] = nil
 							cr.customerLock.Unlock()
 
-							log.L(ctx).Debug("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
+							log.L(ctx).Debugf("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
 
 							if record.CustomerSource == "" {
 								if err := stream.Send(&customerv1.SearchCustomerRequest{

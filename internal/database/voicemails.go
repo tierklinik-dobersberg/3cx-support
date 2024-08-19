@@ -171,10 +171,10 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 		// nothing to do
 
 	case *pbx3cxv1.VoiceMailFilter_CustomerId:
-		filter["caller.customer.id"] = v
+		filter["customer.id"] = v
 
 	case *pbx3cxv1.VoiceMailFilter_Number:
-		filter["caller.number"] = v
+		filter["number"] = v
 
 	default:
 		return nil, fmt.Errorf("invalid or unsupported caller query: %T", v)

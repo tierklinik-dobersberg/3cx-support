@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
+	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 )
@@ -54,6 +56,51 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 	res, err := svc.providers.MailboxDatabase.ListVoiceMails(ctx, req.Msg.Mailbox, req.Msg.Filter)
 	if err != nil {
 		return nil, err
+	}
+
+	ids := make(map[string]struct{})
+	for _, r := range res {
+		if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
+			ids[c.Customer.Id] = struct{}{}
+		}
+	}
+
+	if len(ids) > 0 {
+		var queries []*customerv1.CustomerQuery
+		for id := range ids {
+			queries = append(queries,
+				&customerv1.CustomerQuery{
+					Query: &customerv1.CustomerQuery_Id{
+						Id: id,
+					},
+				},
+			)
+		}
+
+		customerResult, err := svc.providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
+			Queries: queries,
+		}))
+
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to search customers", slog.Any("error", err.Error()))
+		} else {
+			m := make(map[string]*customerv1.Customer, len(customerResult.Msg.Results))
+
+			for _, c := range customerResult.Msg.Results {
+				m[c.Customer.Id] = c.Customer
+			}
+
+			for _, r := range res {
+				if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
+					customer, ok := m[c.Customer.Id]
+					if ok {
+						r.Caller = &pbx3cxv1.VoiceMail_Customer{
+							Customer: customer,
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return connect.NewResponse(&pbx3cxv1.ListVoiceMailsResponse{
