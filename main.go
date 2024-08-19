@@ -74,6 +74,14 @@ func main() {
 	path, handler := pbx3cxv1connect.NewCallServiceHandler(callService, interceptors)
 	serveMux.Handle(path, handler)
 
+	voiceMailSerivce, err := services.NewVoiceMailService(ctx, providers)
+	if err != nil {
+		logrus.Fatalf("failed to prepare voicemail service: %s", err.Error())
+	}
+
+	path, handler = pbx3cxv1connect.NewVoiceMailServiceHandler(voiceMailSerivce, interceptors)
+	serveMux.Handle(path, handler)
+
 	loggingHandler := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logrus.Infof("received request: %s %s%s", r.Method, r.Host, r.URL.String())
