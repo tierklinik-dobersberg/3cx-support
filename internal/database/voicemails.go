@@ -16,7 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MailboxDatabase interface {
@@ -294,16 +293,11 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 		},
 	}
 
-	ts := timestamppb.New(time.Now())
-
-	blob, err := protojson.Marshal(ts)
-	if err != nil {
-		return fmt.Errorf("failed to marhal timestamppb.Timestamp: %w", err)
-	}
+	ts := time.Now().Format(time.RFC3339Nano)
 
 	op := bson.M{
 		"$set": bson.M{
-			"seenTime": string(blob),
+			"seenTime": ts,
 		},
 	}
 
@@ -315,7 +309,7 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 		}
 	}
 
-	_, err = db.records.UpdateMany(
+	_, err := db.records.UpdateMany(
 		ctx,
 		filter,
 		op,
