@@ -175,7 +175,7 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 	}
 
 	filter := bson.M{
-		"mailbox": oid,
+		"mailboxId": oid,
 	}
 
 	switch v := query.GetCaller().(type) {
