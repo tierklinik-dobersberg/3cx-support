@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +31,41 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 		Direction:      msg.Direction,
 	}
 
+	// if there's no customer Id set we try to detect the customer by searching the caller number.
+	if msg.CustomerId == "" {
+		l := slog.Default().WithGroup(msg.Number)
+		l.InfoContext(ctx, "searching customer record by caller", slog.Any("caller", msg.Number))
+
+		res, err := svc.Providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
+			Queries: []*customerv1.CustomerQuery{
+				{
+					Query: &customerv1.CustomerQuery_PhoneNumber{
+						PhoneNumber: msg.Number,
+					},
+				},
+			},
+		}))
+
+		if err != nil {
+			l.ErrorContext(ctx, "failed to search for customer record by caller number", slog.Any("error", err.Error()))
+		} else {
+			switch len(res.Msg.Results) {
+			case 0:
+				l.ErrorContext(ctx, "no customer record for caller number found", slog.Any("error", err.Error()))
+			case 1:
+				if c := res.Msg.Results[0].Customer; c != nil {
+					l.DebugContext(ctx, "found customer record")
+					record.CustomerID = c.Id
+				} else {
+					l.DebugContext(ctx, "got customer response but field is nil")
+				}
+
+			default:
+				l.WarnContext(ctx, "found multiple customer records")
+			}
+		}
+	}
+
 	if msg.Duration != "" {
 		durationInSeconds, err := strconv.ParseUint(msg.Duration, 10, 64)
 		if err != nil {
@@ -46,10 +82,6 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 
 	record.Date = date
 	record.AgentUserId = svc.getUserIdForAgent(ctx, record.Agent)
-
-	if record.Direction == "Outbound" && len(record.Caller) < 3 {
-		// TODO(ppacher): try to merge outbound call from queue->agent to an inbound number where caller->queue
-	}
 
 	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
 		return nil, err
