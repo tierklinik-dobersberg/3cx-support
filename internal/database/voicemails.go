@@ -294,9 +294,16 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 		},
 	}
 
+	ts := timestamppb.New(time.Now())
+
+	blob, err := protojson.Marshal(ts)
+	if err != nil {
+		return fmt.Errorf("failed to marhal timestamppb.Timestamp: %w", err)
+	}
+
 	op := bson.M{
 		"$set": bson.M{
-			"seenTime": timestamppb.New(time.Now()),
+			"seenTime": string(blob),
 		},
 	}
 
@@ -308,7 +315,7 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 		}
 	}
 
-	_, err := db.records.UpdateMany(
+	_, err = db.records.UpdateMany(
 		ctx,
 		filter,
 		op,
