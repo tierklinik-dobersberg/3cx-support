@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
 	"go.mongodb.org/mongo-driver/bson"
@@ -147,12 +148,13 @@ func (db *mailboxDatabase) GetMailbox(ctx context.Context, id string) (*pbx3cxv1
 }
 
 func (db *mailboxDatabase) CreateVoiceMail(ctx context.Context, mail *pbx3cxv1.VoiceMail) error {
-	m, err := MessageToBSON("", mail)
-	if err != nil {
+	model := new(structs.VoiceMail)
+
+	if err := model.FromProto(mail); err != nil {
 		return err
 	}
 
-	res, err := db.records.InsertOne(ctx, m)
+	res, err := db.records.InsertOne(ctx, model)
 	if err != nil {
 		return fmt.Errorf("failed to perform insert operation: %w", err)
 	}
@@ -172,10 +174,10 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 		// nothing to do
 
 	case *pbx3cxv1.VoiceMailFilter_CustomerId:
-		filter["customer.id"] = v.CustomerId
+		filter["customerId"] = v.CustomerId
 
 	case *pbx3cxv1.VoiceMailFilter_Number:
-		filter["number"] = v.Number
+		filter["caller"] = v.Number
 
 	default:
 		return nil, fmt.Errorf("invalid or unsupported caller query: %T", v)
@@ -202,7 +204,7 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 		}
 
 	case v.To.IsValid():
-		filter["receive_time"] = bson.M{
+		filter["receiveTime"] = bson.M{
 			"$lte": v.To.AsTime(),
 		}
 
@@ -230,16 +232,14 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 		return nil, fmt.Errorf("failed to perform find operation: %w", err)
 	}
 
-	var results []*pbx3cxv1.VoiceMail
+	var models []structs.VoiceMail
+	if err := res.All(ctx, &models); err != nil {
+		return nil, err
+	}
 
-	for res.Next(ctx) {
-		var m = new(pbx3cxv1.VoiceMail)
-
-		if err := BSONToMessage(res.Current, m, &m.Id); err != nil {
-			return nil, fmt.Errorf("failed to decode record: %w", err)
-		}
-
-		results = append(results, m)
+	results := make([]*pbx3cxv1.VoiceMail, len(models))
+	for idx, m := range models {
+		results[idx] = m.ToProto()
 	}
 
 	return results, nil
@@ -260,17 +260,12 @@ func (db *mailboxDatabase) GetVoicemail(ctx context.Context, id string) (*pbx3cx
 		return nil, res.Err()
 	}
 
-	raw, err := res.Raw()
-	if err != nil {
+	model := new(structs.VoiceMail)
+	if err := res.Decode(&model); err != nil {
 		return nil, err
 	}
 
-	mb := new(pbx3cxv1.VoiceMail)
-	if err := BSONToMessage(raw, mb, &mb.Id); err != nil {
-		return nil, err
-	}
-
-	return mb, nil
+	return model.ToProto(), nil
 }
 
 func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []string) error {
@@ -293,11 +288,9 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 		},
 	}
 
-	ts := time.Now().Format(time.RFC3339Nano)
-
 	op := bson.M{
 		"$set": bson.M{
-			"seenTime": ts,
+			"seenTime": time.Now(),
 		},
 	}
 
