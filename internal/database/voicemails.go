@@ -154,6 +154,10 @@ func (db *mailboxDatabase) CreateVoiceMail(ctx context.Context, mail *pbx3cxv1.V
 		return err
 	}
 
+	if model.ID.IsZero() {
+		model.ID = primitive.NewObjectID()
+	}
+
 	res, err := db.records.InsertOne(ctx, model)
 	if err != nil {
 		return fmt.Errorf("failed to perform insert operation: %w", err)
