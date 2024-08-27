@@ -16,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type MailboxDatabase interface {
@@ -295,7 +296,7 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []
 
 	op := bson.M{
 		"$set": bson.M{
-			"seenTime": time.Now(),
+			"seenTime": timestamppb.New(time.Now()),
 		},
 	}
 
