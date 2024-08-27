@@ -163,6 +163,7 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetFetchVoiceMailCommand(root),
 		GetVoiceMailRecordCommand(root),
+		GetMarkVoiceMailCommand(root),
 	)
 
 	f := cmd.Flags()
@@ -285,6 +286,33 @@ func GetFetchVoiceMailCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Desitnation for the recording file")
+
+	return cmd
+}
+
+func GetMarkVoiceMailCommand(root *cli.Root) *cobra.Command {
+	var seen bool
+
+	cmd := &cobra.Command{
+		Use:  "mark [ids...]",
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
+
+			res, err := cli.MarkVoiceMails(root.Context(), connect.NewRequest(&pbx3cxv1.MarkVoiceMailsRequest{
+				VoicemailIds: args,
+				Seen:         seen,
+			}))
+
+			if err != nil {
+				logrus.Fatalf(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
+	}
+
+	cmd.Flags().BoolVar(&seen, "seen", true, "Mark as seen or unseen")
 
 	return cmd
 }
