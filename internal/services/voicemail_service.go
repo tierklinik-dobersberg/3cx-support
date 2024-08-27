@@ -161,6 +161,8 @@ func (svc *VoiceMailService) ServeRecording(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	slog.InfoContext(r.Context(), "searching voicemail record", slog.Any("id", id))
+
 	record, err := svc.providers.MailboxDatabase.GetVoicemail(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -171,6 +173,8 @@ func (svc *VoiceMailService) ServeRecording(w http.ResponseWriter, r *http.Reque
 
 		return
 	}
+
+	slog.InfoContext(r.Context(), "found voicemail recording", slog.Any("id", id), slog.Any("filename", record.FileName))
 
 	s, err := os.Stat(record.FileName)
 	if err != nil {

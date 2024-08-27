@@ -1,6 +1,10 @@
 package cmds
 
 import (
+	"io"
+	"net/http"
+	"net/url"
+	"os"
 	"time"
 
 	"github.com/bufbuild/connect-go"
@@ -34,6 +38,7 @@ func GetVoiceMailCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreateMailboxCommand(root),
 		GetSearchVoiceMailRecordsCommand(root),
+		GetFetchVoiceMailCommand(root),
 	)
 
 	return cmd
@@ -161,6 +166,76 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		f.StringVar(&to, "to", "", "")
 		f.StringSliceVar(&paths, "field", nil, "")
 	}
+
+	return cmd
+}
+
+func GetFetchVoiceMailCommand(root *cli.Root) *cobra.Command {
+	var (
+		outputFile string
+	)
+
+	cmd := &cobra.Command{
+		Use:  "fetch [id]",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			// FIXME(ppacher): fetch recording and use the existing filename
+			// instead of foricng --output to be set.
+			if outputFile == "" {
+				logrus.Fatalf("--output is required")
+			}
+
+			u, err := url.Parse(root.Config().BaseURLS.CallService)
+			if err != nil {
+				logrus.Fatalf("invalid URI: %s", err)
+			}
+
+			u.Path = "/voicemails/"
+
+			q := u.Query()
+
+			q.Add("id", args[0])
+
+			u.RawQuery = q.Encode()
+
+			req, err := http.NewRequestWithContext(root.Context(), http.MethodGet, u.String(), nil)
+			if err != nil {
+				logrus.Fatalf("failed to prepare request: %s", err)
+			}
+
+			req.Header.Add("Authorization", "Bearer "+root.Tokens().AccessToken)
+
+			res, err := root.HttpClient.Do(req)
+			if err != nil {
+				logrus.Fatalf("error fetching recording: %s", err.Error())
+			}
+			defer res.Body.Close()
+
+			if res.StatusCode != http.StatusOK {
+				logrus.Fatalf("error fetching recording: %s", res.Status)
+			}
+
+			var output io.Writer
+			switch outputFile {
+			case "-":
+				output = os.Stdout
+			default:
+				f, err := os.Create(outputFile)
+				if err != nil {
+					logrus.Fatalf("failed to create output file: %s", err.Error())
+				}
+				defer f.Close()
+
+				output = f
+			}
+
+			if _, err := io.Copy(output, res.Body); err != nil {
+				logrus.Fatalf("failed to write output file: %s", err.Error())
+			}
+		},
+	}
+
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Desitnation for the recording file")
 
 	return cmd
 }
