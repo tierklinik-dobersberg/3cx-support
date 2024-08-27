@@ -169,8 +169,13 @@ func (db *mailboxDatabase) CreateVoiceMail(ctx context.Context, mail *pbx3cxv1.V
 }
 
 func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error) {
+	oid, err := primitive.ObjectIDFromHex(mailbox)
+	if err != nil {
+		return nil, err
+	}
+
 	filter := bson.M{
-		"mailbox": mailbox,
+		"mailbox": oid,
 	}
 
 	switch v := query.GetCaller().(type) {
