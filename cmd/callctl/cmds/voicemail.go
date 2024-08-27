@@ -38,7 +38,6 @@ func GetVoiceMailCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreateMailboxCommand(root),
 		GetSearchVoiceMailRecordsCommand(root),
-		GetFetchVoiceMailCommand(root),
 	)
 
 	return cmd
@@ -95,17 +94,24 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		caller     string
 		customerId string
 		paths      []string
+		prune      bool
 	)
 
 	cmd := &cobra.Command{
 		Use:  "records mailbox",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			fm, err := fieldmaskpb.New(new(pbx3cxv1.ListVoiceMailsResponse), paths...)
+			if err != nil {
+				logrus.Fatalf("invalid field mask: %s", err)
+			}
+
 			req := &pbx3cxv1.ListVoiceMailsRequest{
 				Mailbox: args[0],
 				Filter:  &pbx3cxv1.VoiceMailFilter{},
-				View: &fieldmaskpb.FieldMask{
-					Paths: paths,
+				View: &commonv1.View{
+					FieldMask: fm,
+					Prune:     prune,
 				},
 			}
 
@@ -157,14 +163,57 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		},
 	}
 
+	cmd.AddCommand(
+		GetFetchVoiceMailCommand(root),
+		GetVoiceMailRecordCommand(root),
+	)
+
 	f := cmd.Flags()
 	{
 		f.StringVar(&caller, "caller", "", "")
 		f.StringVar(&customerId, "customer-id", "", "")
 		f.BoolVar(&unseen, "unseen", true, "")
+		f.BoolVar(&prune, "exclude-fields", false, "Whether or not --field should be included or excluded")
 		f.StringVar(&from, "from", "", "")
 		f.StringVar(&to, "to", "", "")
 		f.StringSliceVar(&paths, "field", nil, "")
+	}
+
+	return cmd
+}
+
+func GetVoiceMailRecordCommand(root *cli.Root) *cobra.Command {
+	var (
+		paths []string
+		prune bool
+	)
+
+	cmd := &cobra.Command{
+		Use:  "get id",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			fm, err := fieldmaskpb.New(new(pbx3cxv1.ListVoiceMailsResponse), paths...)
+			if err != nil {
+				logrus.Fatalf("invalid field mask: %s", err)
+			}
+
+			req := &pbx3cxv1.GetVoiceMailRequest{
+				Id: args[0],
+				View: &commonv1.View{
+					FieldMask: fm,
+					Prune:     prune,
+				},
+			}
+
+			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
+
+			res, err := cli.GetVoiceMail(root.Context(), connect.NewRequest(req))
+			if err != nil {
+				logrus.Fatal(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
 	}
 
 	return cmd

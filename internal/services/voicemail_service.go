@@ -6,16 +6,15 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/mennanov/fmutils"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
+	"github.com/tierklinik-dobersberg/apis/pkg/view"
 )
 
 type VoiceMailService struct {
@@ -57,8 +56,8 @@ func (svc *VoiceMailService) ListMailboxes(ctx context.Context, req *connect.Req
 		Mailboxes: boxes,
 	}
 
-	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
-		fmutils.Filter(response, paths)
+	if v := req.Msg.GetView(); v != nil {
+		view.Apply(response, v)
 	}
 
 	return connect.NewResponse(response), nil
@@ -71,24 +70,9 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 	}
 
 	ids := make(map[string]struct{})
-
-	fetchCustomers := true
-	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
-		fetchCustomers = false
-
-		for _, p := range paths {
-			if strings.HasPrefix(p, "customers") || strings.HasPrefix(p, "voicemails.customers") || p == "voicemails" {
-				fetchCustomers = true
-				break
-			}
-		}
-	}
-
-	if fetchCustomers {
-		for _, r := range res {
-			if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
-				ids[c.Customer.Id] = struct{}{}
-			}
+	for _, r := range res {
+		if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
+			ids[c.Customer.Id] = struct{}{}
 		}
 	}
 
@@ -139,8 +123,8 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 		Customers:  customers,
 	}
 
-	if paths := req.Msg.GetView().GetPaths(); len(paths) > 0 {
-		fmutils.Filter(response, paths)
+	if v := req.Msg.GetView(); v != nil {
+		view.Apply(response, v)
 	}
 
 	return connect.NewResponse(response), nil
@@ -152,6 +136,27 @@ func (svc *VoiceMailService) MarkVoiceMails(ctx context.Context, req *connect.Re
 	}
 
 	return connect.NewResponse(&pbx3cxv1.MarkVoiceMailsResponse{}), nil
+}
+
+func (svc *VoiceMailService) GetVoiceMail(ctx context.Context, req *connect.Request[pbx3cxv1.GetVoiceMailRequest]) (*connect.Response[pbx3cxv1.GetVoiceMailResponse], error) {
+	record, err := svc.providers.MailboxDatabase.GetVoicemail(ctx, req.Msg.Id)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+
+		return nil, err
+	}
+
+	response := &pbx3cxv1.GetVoiceMailResponse{
+		Voicemail: record,
+	}
+
+	if v := req.Msg.GetView(); v != nil {
+		view.Apply(response, v)
+	}
+
+	return connect.NewResponse(response), nil
 }
 
 func (svc *VoiceMailService) ServeRecording(w http.ResponseWriter, r *http.Request) {
