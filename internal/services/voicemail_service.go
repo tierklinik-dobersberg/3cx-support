@@ -56,6 +56,13 @@ func (svc *VoiceMailService) ListMailboxes(ctx context.Context, req *connect.Req
 		Mailboxes: boxes,
 	}
 
+	for _, b := range boxes {
+		// remove the password from all responses
+		if b.GetConfig().GetPassword() != "" {
+			b.Config.Password = ""
+		}
+	}
+
 	if v := req.Msg.GetView(); v != nil {
 		view.Apply(response, v)
 	}
