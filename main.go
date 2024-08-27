@@ -82,6 +82,8 @@ func main() {
 	path, handler = pbx3cxv1connect.NewVoiceMailServiceHandler(voiceMailSerivce, interceptors)
 	serveMux.Handle(path, handler)
 
+	serveMux.HandleFunc("/voicemails/", voiceMailSerivce.ServeRecording)
+
 	loggingHandler := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			logrus.Infof("received request: %s %s%s", r.Method, r.Host, r.URL.String())

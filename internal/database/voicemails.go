@@ -26,6 +26,7 @@ type MailboxDatabase interface {
 	CreateVoiceMail(ctx context.Context, voicemail *pbx3cxv1.VoiceMail) error
 	ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error)
 	MarkVoiceMails(ctx context.Context, seen bool, ids []string) error
+	GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error)
 
 	mailsync.Store
 }
@@ -242,6 +243,34 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 	}
 
 	return results, nil
+}
+
+func (db *mailboxDatabase) GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
+	res := db.records.FindOne(ctx, bson.M{"_id": oid})
+	if err := res.Err(); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+
+		return nil, res.Err()
+	}
+
+	raw, err := res.Raw()
+	if err != nil {
+		return nil, err
+	}
+
+	mb := new(pbx3cxv1.VoiceMail)
+	if err := BSONToMessage(raw, mb, &mb.Id); err != nil {
+		return nil, err
+	}
+
+	return mb, nil
 }
 
 func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []string) error {

@@ -2,12 +2,16 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
+	"os"
 	"strings"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/mennanov/fmutils"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
@@ -148,4 +152,39 @@ func (svc *VoiceMailService) MarkVoiceMails(ctx context.Context, req *connect.Re
 	}
 
 	return connect.NewResponse(&pbx3cxv1.MarkVoiceMailsResponse{}), nil
+}
+
+func (svc *VoiceMailService) ServeRecording(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "invalid or missing voicemail recording id", http.StatusBadRequest)
+		return
+	}
+
+	record, err := svc.providers.MailboxDatabase.GetVoicemail(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			http.Error(w, "voicemail recording not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		return
+	}
+
+	s, err := os.Stat(record.FileName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	f, err := os.Open(record.FileName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	defer f.Close()
+
+	http.ServeContent(w, r, record.FileName, s.ModTime(), f)
 }
