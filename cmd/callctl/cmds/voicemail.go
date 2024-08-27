@@ -101,17 +101,14 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		Use:  "records mailbox",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			fm, err := fieldmaskpb.New(new(pbx3cxv1.ListVoiceMailsResponse), paths...)
-			if err != nil {
-				logrus.Fatalf("invalid field mask: %s", err)
-			}
-
 			req := &pbx3cxv1.ListVoiceMailsRequest{
 				Mailbox: args[0],
 				Filter:  &pbx3cxv1.VoiceMailFilter{},
 				View: &commonv1.View{
-					FieldMask: fm,
-					Prune:     prune,
+					FieldMask: &fieldmaskpb.FieldMask{
+						Paths: paths,
+					},
+					Prune: prune,
 				},
 			}
 
@@ -192,16 +189,13 @@ func GetVoiceMailRecordCommand(root *cli.Root) *cobra.Command {
 		Use:  "get id",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			fm, err := fieldmaskpb.New(new(pbx3cxv1.ListVoiceMailsResponse), paths...)
-			if err != nil {
-				logrus.Fatalf("invalid field mask: %s", err)
-			}
-
 			req := &pbx3cxv1.GetVoiceMailRequest{
 				Id: args[0],
 				View: &commonv1.View{
-					FieldMask: fm,
-					Prune:     prune,
+					FieldMask: &fieldmaskpb.FieldMask{
+						Paths: paths,
+					},
+					Prune: prune,
 				},
 			}
 
@@ -214,6 +208,12 @@ func GetVoiceMailRecordCommand(root *cli.Root) *cobra.Command {
 
 			root.Print(res.Msg)
 		},
+	}
+
+	f := cmd.Flags()
+	{
+		f.BoolVar(&prune, "exclude-fields", false, "Whether or not --field should be included or excluded")
+		f.StringSliceVar(&paths, "field", nil, "A list of protobuf field names to include or exclude")
 	}
 
 	return cmd

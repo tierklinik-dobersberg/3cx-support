@@ -155,6 +155,36 @@ func (svc *VoiceMailService) GetVoiceMail(ctx context.Context, req *connect.Requ
 		return nil, err
 	}
 
+	if customerId := record.GetCustomer().GetId(); customerId != "" {
+		res, err := svc.providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
+			Queries: []*customerv1.CustomerQuery{
+				&customerv1.CustomerQuery{
+					Query: &customerv1.CustomerQuery_Id{
+						Id: customerId,
+					},
+				},
+			},
+		}))
+
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to fetch customer record", slog.Any("customerId", customerId), slog.Any("error", err.Error()))
+		} else {
+			switch len(res.Msg.Results) {
+			case 0:
+				slog.ErrorContext(ctx, "failed to find customer record", slog.Any("customerId", customerId))
+			case 1:
+				record.Caller = &pbx3cxv1.VoiceMail_Customer{
+					Customer: res.Msg.Results[0].Customer,
+				}
+			default:
+				slog.WarnContext(ctx, "got multiple customer records for a single ID, using the first one", slog.Any("customerId", customerId))
+				record.Caller = &pbx3cxv1.VoiceMail_Customer{
+					Customer: res.Msg.Results[0].Customer,
+				}
+			}
+		}
+	}
+
 	response := &pbx3cxv1.GetVoiceMailResponse{
 		Voicemail: record,
 	}
