@@ -64,20 +64,47 @@ func (mng *Manager) CreateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) err
 		return err
 	}
 
-	box, err := NewMailboxSyncer(
-		ctx,
-		mng.providers.Config.VoiceMailStoragePath,
-		mng.Manager,
-		mng.providers.MailboxDatabase,
-		mng.providers.Customer,
-		mb,
-	)
+	box, err := mng.createSyncer(mb)
 	if err != nil {
 		return fmt.Errorf("failed to create mailbox syncer %q: %w", mb.Id, err)
 	}
 
 	mng.l.Lock()
 	defer mng.l.Unlock()
+	mng.boxes[mb.Id] = box
+
+	return nil
+}
+
+func (mng *Manager) createSyncer(mb *pbx3cxv1.Mailbox) (*Mailbox, error) {
+	return NewMailboxSyncer(
+		context.Background(),
+		mng.providers.Config.VoiceMailStoragePath,
+		mng.Manager,
+		mng.providers.MailboxDatabase,
+		mng.providers.Customer,
+		mb,
+	)
+}
+
+func (mng *Manager) UpdateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) error {
+	mng.l.Lock()
+	defer mng.l.Unlock()
+
+	box, ok := mng.boxes[mb.Id]
+	if !ok {
+		return database.ErrNotFound
+	}
+
+	if err := box.Dispose(); err != nil {
+		return fmt.Errorf("failed to dispose syncer %q: %w", mb.Id, err)
+	}
+
+	box, err := mng.createSyncer(mb)
+	if err != nil {
+		return fmt.Errorf("failed to create mailbox syncer %q: %w", mb.Id, err)
+	}
+
 	mng.boxes[mb.Id] = box
 
 	return nil
@@ -98,7 +125,9 @@ func (mng *Manager) DeleteMailbox(ctx context.Context, id string) error {
 
 	delete(mng.boxes, id)
 
-	// TODO(ppacher): delete from database
+	if err := mng.providers.MailboxDatabase.DeleteMailbox(ctx, id); err != nil {
+		return fmt.Errorf("failed to remove mailbox from database: %w", err)
+	}
 
 	return nil
 }

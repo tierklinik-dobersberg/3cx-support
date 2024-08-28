@@ -23,6 +23,10 @@ type MailboxDatabase interface {
 	CreateMailbox(ctx context.Context, mailbox *pbx3cxv1.Mailbox) error
 	ListMailboxes(ctx context.Context) ([]*pbx3cxv1.Mailbox, error)
 	GetMailbox(ctx context.Context, id string) (*pbx3cxv1.Mailbox, error)
+	DeleteMailbox(ctx context.Context, id string) error
+	AppendNotificationSetting(ctx context.Context, mailbox string, nfs *pbx3cxv1.NotificationSettings) error
+	DeleteNotificationSetting(ctx context.Context, mailbox, name string) error
+	UpdateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) error
 
 	CreateVoiceMail(ctx context.Context, voicemail *pbx3cxv1.VoiceMail) error
 	ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error)
@@ -145,6 +149,111 @@ func (db *mailboxDatabase) GetMailbox(ctx context.Context, id string) (*pbx3cxv1
 	}
 
 	return mb, nil
+}
+
+func (db *mailboxDatabase) DeleteMailbox(ctx context.Context, id string) error {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("failed to parse mailbox id: %w", err)
+	}
+
+	res, err := db.mailboxes.DeleteOne(ctx, bson.M{"_id": oid})
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("failed to perform delete operation: %w", err)
+	}
+
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (db *mailboxDatabase) UpdateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) error {
+	doc, err := MessageToBSON(mb.Id, mb)
+	if err != nil {
+		return fmt.Errorf("failed to convert protobuf message to bson: %w", err)
+	}
+
+	res, err := db.mailboxes.ReplaceOne(ctx, bson.M{
+		"_id": doc["_id"],
+	}, doc)
+	if err != nil {
+		return fmt.Errorf("failed to perform replace operation: %w", err)
+	}
+
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (db *mailboxDatabase) AppendNotificationSetting(ctx context.Context, mailbox string, setting *pbx3cxv1.NotificationSettings) error {
+	oid, err := primitive.ObjectIDFromHex(mailbox)
+	if err != nil {
+		return fmt.Errorf("failed to parse mailbox id: %w", err)
+	}
+
+	filter := bson.M{
+		"_id": oid,
+	}
+
+	m, err := MessageToBSON("", setting)
+	if err != nil {
+		return fmt.Errorf("failed to convert protobuf message to bson: %w", err)
+	}
+
+	update := bson.M{
+		"$push": bson.M{
+			"notificationSettings": m,
+		},
+	}
+
+	res, err := db.mailboxes.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to perform update operation: %w", err)
+	}
+
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (db *mailboxDatabase) DeleteNotificationSetting(ctx context.Context, mailbox, settingName string) error {
+	oid, err := primitive.ObjectIDFromHex(mailbox)
+	if err != nil {
+		return fmt.Errorf("failed to parse mailbox id: %w", err)
+	}
+
+	filter := bson.M{
+		"_id": oid,
+	}
+
+	update := bson.M{
+		"$pull": bson.M{
+			"notificationSettings": bson.M{
+				"name": settingName,
+			},
+		},
+	}
+
+	res, err := db.mailboxes.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to perform update operation: %w", err)
+	}
+
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (db *mailboxDatabase) CreateVoiceMail(ctx context.Context, mail *pbx3cxv1.VoiceMail) error {

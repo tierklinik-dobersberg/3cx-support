@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/view"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type VoiceMailService struct {
@@ -68,6 +70,67 @@ func (svc *VoiceMailService) ListMailboxes(ctx context.Context, req *connect.Req
 	}
 
 	return connect.NewResponse(response), nil
+}
+
+func (svc *VoiceMailService) DeleteMailbox(ctx context.Context, req *connect.Request[pbx3cxv1.DeleteMailboxRequest]) (*connect.Response[emptypb.Empty], error) {
+	if err := svc.manager.DeleteMailbox(ctx, req.Msg.Id); err != nil {
+		return nil, err
+	}
+
+	return connect.NewResponse(&emptypb.Empty{}), nil
+}
+
+func (svc *VoiceMailService) UpdateMailbox(ctx context.Context, req *connect.Request[pbx3cxv1.UpdateMailboxRequest]) (*connect.Response[pbx3cxv1.UpdateMailboxResponse], error) {
+	var err error
+
+	switch upd := req.Msg.Update.(type) {
+	case *pbx3cxv1.UpdateMailboxRequest_AddNotificationSetting:
+		err = svc.providers.MailboxDatabase.AppendNotificationSetting(ctx, req.Msg.MailboxId, upd.AddNotificationSetting)
+	case *pbx3cxv1.UpdateMailboxRequest_DeleteNotificationSetting:
+		err = svc.providers.MailboxDatabase.DeleteNotificationSetting(ctx, req.Msg.MailboxId, upd.DeleteNotificationSetting)
+	case *pbx3cxv1.UpdateMailboxRequest_Mailbox:
+		var mb *pbx3cxv1.Mailbox
+
+		// fetch the current mailbox first since we don't update notification settings here
+		mb, err = svc.providers.MailboxDatabase.GetMailbox(ctx, req.Msg.MailboxId)
+		if err != nil {
+			if errors.Is(err, database.ErrNotFound) {
+				return nil, connect.NewError(connect.CodeNotFound, err)
+			}
+
+			return nil, err
+		}
+
+		// copy over the notification settings
+		upd.Mailbox.NotificationSettings = mb.NotificationSettings
+
+		// replace the mailbox
+		err = svc.providers.MailboxDatabase.UpdateMailbox(ctx, upd.Mailbox)
+
+		// inform the manager about the update.
+		if err == nil {
+			err = svc.manager.UpdateMailbox(ctx, upd.Mailbox)
+		}
+	}
+
+	// handle any update error
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+
+		return nil, err
+	}
+
+	// fetch the mailbox again for the response
+	updated, err := svc.providers.MailboxDatabase.GetMailbox(ctx, req.Msg.MailboxId)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error while fetching updated mailbox: %w", err)
+	}
+
+	return connect.NewResponse(&pbx3cxv1.UpdateMailboxResponse{
+		Mailbox: updated,
+	}), nil
 }
 
 func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.ListVoiceMailsRequest]) (*connect.Response[pbx3cxv1.ListVoiceMailsResponse], error) {
@@ -158,7 +221,7 @@ func (svc *VoiceMailService) GetVoiceMail(ctx context.Context, req *connect.Requ
 	if customerId := record.GetCustomer().GetId(); customerId != "" {
 		res, err := svc.providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
 			Queries: []*customerv1.CustomerQuery{
-				&customerv1.CustomerQuery{
+				{
 					Query: &customerv1.CustomerQuery_Id{
 						Id: customerId,
 					},

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bufbuild/connect-go"
@@ -36,14 +38,16 @@ func GetVoiceMailCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		GetCreateMailboxCommand(root),
+		GetCreateOrUpdateMailboxCommand(root),
+		GetAddNotificationSettingsCommand(root),
+		GetDeleteInboundNumberCommand(root),
 		GetSearchVoiceMailRecordsCommand(root),
 	)
 
 	return cmd
 }
 
-func GetCreateMailboxCommand(root *cli.Root) *cobra.Command {
+func GetCreateOrUpdateMailboxCommand(root *cli.Root) *cobra.Command {
 	var pollInterval time.Duration
 
 	mb := &pbx3cxv1.Mailbox{
@@ -51,20 +55,40 @@ func GetCreateMailboxCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use: "create",
+		Use:     "create",
+		Aliases: []string{"update"},
 		Run: func(cmd *cobra.Command, args []string) {
 			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
 
 			mb.PollInterval = durationpb.New(pollInterval)
 
-			res, err := cli.CreateMailbox(root.Context(), connect.NewRequest(&pbx3cxv1.CreateMailboxRequest{
-				Mailbox: mb,
-			}))
-			if err != nil {
-				logrus.Fatal(err.Error())
-			}
+			if cmd.CalledAs() == "create" {
+				res, err := cli.CreateMailbox(root.Context(), connect.NewRequest(&pbx3cxv1.CreateMailboxRequest{
+					Mailbox: mb,
+				}))
+				if err != nil {
+					logrus.Fatal(err.Error())
+				}
 
-			root.Print(res.Msg)
+				root.Print(res.Msg)
+			} else {
+				if len(args) == 0 {
+					logrus.Fatalf("missing mailbox id parameter")
+				}
+
+				res, err := cli.UpdateMailbox(root.Context(), connect.NewRequest(&pbx3cxv1.UpdateMailboxRequest{
+					MailboxId: args[0],
+					Update: &pbx3cxv1.UpdateMailboxRequest_Mailbox{
+						Mailbox: mb,
+					},
+				}))
+
+				if err != nil {
+					logrus.Fatal(err.Error())
+				}
+
+				root.Print(res.Msg)
+			}
 		},
 	}
 
@@ -81,6 +105,136 @@ func GetCreateMailboxCommand(root *cli.Root) *cobra.Command {
 		f.BoolVar(&mb.Config.InsecureSkipVerify, "insecure", false, "")
 		f.BoolVar(&mb.Config.ReadOnly, "read-only", true, "")
 		f.DurationVar(&pollInterval, "poll-interval", time.Minute*5, "")
+	}
+
+	return cmd
+}
+
+func GetDeleteNotificationSettingCommand(root *cli.Root) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  "delete-notification [id] [setting-name]",
+		Args: cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
+
+			res, err := cli.UpdateMailbox(root.Context(), connect.NewRequest(&pbx3cxv1.UpdateMailboxRequest{
+				MailboxId: args[0],
+				Update: &pbx3cxv1.UpdateMailboxRequest_DeleteNotificationSetting{
+					DeleteNotificationSetting: args[1],
+				},
+			}))
+			if err != nil {
+				logrus.Fatal(err)
+			}
+
+			root.Print(res.Msg)
+		},
+	}
+
+	return cmd
+}
+
+func GetAddNotificationSettingsCommand(root *cli.Root) *cobra.Command {
+	var (
+		name            string
+		description     string
+		subjectTemplate string
+		messageTemplate string
+		users           []string
+		times           []string
+		types           []string
+	)
+
+	cmd := &cobra.Command{
+		Use:  "add-notification [id]",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			req := &pbx3cxv1.NotificationSettings{
+				Name:            name,
+				Description:     description,
+				SubjectTemplate: subjectTemplate,
+				MessageTemplate: messageTemplate,
+			}
+
+			usersIds, err := root.ResolveUserIds(root.Context(), users)
+			if err != nil {
+				logrus.Fatalf("failed to resolve users: %s", err)
+			}
+
+			req.Recipients = &pbx3cxv1.NotificationSettings_UserIds{
+				UserIds: &commonv1.StringList{
+					Values: usersIds,
+				},
+			}
+
+			// parse and append send times
+			for _, t := range times {
+				parts := strings.Split(t, ":")
+				if len(parts) != 2 {
+					logrus.Fatalf("failed to parse time-of-day %q: %s", t, err)
+				}
+
+				hour, err := strconv.ParseInt(strings.TrimPrefix(parts[0], "0"), 10, 0)
+				if err != nil {
+					logrus.Fatalf("failed to parse time-of-day: invalid hour %q: %s", parts[0], err)
+				}
+
+				minute, err := strconv.ParseInt(strings.TrimPrefix(parts[1], "0"), 10, 0)
+				if err != nil {
+					logrus.Fatalf("failed to parse time-of-day: invalid minute %q: %s", parts[1], err)
+				}
+
+				req.SendTimes = append(req.SendTimes, &commonv1.DayTime{
+					Hour:   int32(hour),
+					Minute: int32(minute),
+				})
+			}
+
+			// parse and append notification-types
+			for _, t := range types {
+				switch t {
+				case "sms":
+					req.Types = append(req.Types, pbx3cxv1.NotificationType_NOTIFICATION_TYPE_SMS)
+				case "mail", "email":
+					req.Types = append(req.Types, pbx3cxv1.NotificationType_NOTIFICATION_TYPE_MAIL)
+				case "push", "webpush":
+					req.Types = append(req.Types, pbx3cxv1.NotificationType_NOTIFICATION_TYPE_WEBPUSH)
+
+				default:
+					logrus.Fatalf("unsupported or invalid notification type %q", t)
+				}
+			}
+
+			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
+
+			res, err := cli.UpdateMailbox(root.Context(), connect.NewRequest(&pbx3cxv1.UpdateMailboxRequest{
+				MailboxId: args[0],
+				Update: &pbx3cxv1.UpdateMailboxRequest_AddNotificationSetting{
+					AddNotificationSetting: req,
+				},
+			}))
+			if err != nil {
+				logrus.Fatalf(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
+	}
+
+	f := cmd.Flags()
+	{
+		f.StringVar(&name, "name", "", "The name for the notification setting")
+		cmd.MarkFlagRequired("name")
+
+		f.StringVar(&description, "description", "", "An optional description for the notification settings")
+
+		f.StringVar(&subjectTemplate, "subject", "", "The template for the notification subject (only for WebPush and EMail)")
+		f.StringVar(&messageTemplate, "message", "", "The template for the notification message")
+		f.StringSliceVar(&users, "to-user", nil, "A list of users to notify")
+		f.StringSliceVar(&times, "send-at", nil, "A list of time-of-day (HH:MM) at which notification should be sent")
+
+		f.StringSliceVar(&types, "type", nil, "A list of notification types to send. Valid values are sms, push or mail")
+		cmd.MarkFlagRequired("type")
 	}
 
 	return cmd
