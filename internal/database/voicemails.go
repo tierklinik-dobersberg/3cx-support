@@ -256,9 +256,7 @@ func (db *mailboxDatabase) AppendNotificationSetting(ctx context.Context, mailbo
 	}, options.Update().SetArrayFilters(options.ArrayFilters{
 		Filters: []any{
 			bson.M{
-				"filter": bson.M{
-					"name": setting.Name,
-				},
+				"filter.name": setting.Name,
 			},
 		},
 	}))
