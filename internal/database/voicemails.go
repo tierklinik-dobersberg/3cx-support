@@ -444,7 +444,12 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, mailbo
 	filter := bson.M{}
 
 	if mailbox != "" {
-		filter["mailboxId"] = mailbox
+		moid, err := primitive.ObjectIDFromHex(mailbox)
+		if err != nil {
+			return fmt.Errorf("failed to parse mailbox id: %w", err)
+		}
+
+		filter["mailboxId"] = moid
 	}
 
 	if len(oids) > 0 {
