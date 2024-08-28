@@ -3,6 +3,7 @@ package voicemail
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
@@ -56,7 +57,11 @@ func (mng *Manager) start(ctx context.Context) error {
 		mng.boxes[mb.Id] = box
 	}
 
-	return merr.ErrorOrNil()
+	if err := merr.ErrorOrNil(); err != nil {
+		slog.ErrorContext(ctx, "failed to create mailboxes", slog.Any("error", err.Error()))
+	}
+
+	return nil
 }
 
 func (mng *Manager) CreateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) error {
