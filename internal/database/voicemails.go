@@ -444,7 +444,7 @@ func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, mailbo
 	filter := bson.M{}
 
 	if mailbox != "" {
-		filter["mailbox"] = mailbox
+		filter["mailboxId"] = mailbox
 	}
 
 	if len(oids) > 0 {
