@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
@@ -454,6 +455,8 @@ func BSONToMessage(document bson.Raw, msg proto.Message, id *string) error {
 	}
 
 	if err := unmarshaler.Unmarshal(json, msg); err != nil {
+		slog.Error("failed to unmarshal JSON to protobuf message", slog.Any("error", err.Error()), slog.Any("json", string(json)))
+
 		return fmt.Errorf("failed to unmarshal JSON to protobuf message: %w", err)
 	}
 

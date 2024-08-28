@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -204,6 +205,9 @@ func GetAddNotificationSettingsCommand(root *cli.Root) *cobra.Command {
 					logrus.Fatalf("unsupported or invalid notification type %q", t)
 				}
 			}
+
+			root.Print(req)
+			fmt.Println()
 
 			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
 
