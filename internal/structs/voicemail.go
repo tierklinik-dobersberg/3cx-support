@@ -10,18 +10,6 @@ import (
 )
 
 type (
-	IMAPConfig struct {
-	}
-
-	Mailbox struct {
-		ID                  primitive.ObjectID `bson:"_id,omitempty"`
-		DisplayName         string             `bson:"displayName"`
-		PollInterval        time.Duration      `bson:"pollInterval"`
-		IMAPConfig          IMAPConfig         `bson:"config"`
-		ExtractCallerRegexp string             `bson:"extractCallerRegexp"`
-		ExtractTargetRegexp string             `bson:"extractTargetRegexp"`
-	}
-
 	VoiceMail struct {
 		ID            primitive.ObjectID `bson:"_id"`
 		Mailbox       primitive.ObjectID `bson:"mailboxId"`

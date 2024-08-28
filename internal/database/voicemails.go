@@ -59,6 +59,44 @@ func NewMailboxDatabase(ctx context.Context, cli *mongo.Database) (MailboxDataba
 }
 
 func (db *mailboxDatabase) setup(ctx context.Context) error {
+	if _, err := db.mailboxes.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "notificationSettings.name", Value: 1},
+			},
+			Options: options.Index().SetUnique(true),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to create indexes on mailbox collection: %w", err)
+	}
+
+	if _, err := db.records.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "mailbox", Value: 1},
+			},
+		},
+		{
+			Keys: bson.D{
+				{Key: "receiveTime", Value: 1},
+			},
+		},
+		{
+			Keys: bson.D{
+				{Key: "caller", Value: 1},
+			},
+			Options: options.Index().SetSparse(true),
+		},
+		{
+			Keys: bson.D{
+				{Key: "customerId", Value: 1},
+			},
+			Options: options.Index().SetSparse(true),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to create indexes on records collection: %w", err)
+	}
+
 	return nil
 }
 
