@@ -218,7 +218,7 @@ func (box *Mailbox) HandleMail(ctx context.Context, mail *mailbox.EMail) {
 
 	record := &pbx3cxv1.VoiceMail{
 		Mailbox:       box.name,
-		ReceiveTime:   timestamppb.Now(),
+		ReceiveTime:   timestamppb.New(mail.InternalDate),
 		Subject:       mail.Subject,
 		Message:       body,
 		FileName:      filePath,
