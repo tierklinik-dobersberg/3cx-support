@@ -3,6 +3,7 @@ package database
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -445,7 +446,7 @@ func BSONToMessage(document bson.Raw, msg proto.Message, id *string) error {
 		return err
 	}
 
-	json, err := bson.MarshalExtJSON(m, true, false)
+	blob, err := json.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("failed to marshal BSON as JSON: %w", err)
 	}
@@ -454,8 +455,8 @@ func BSONToMessage(document bson.Raw, msg proto.Message, id *string) error {
 		DiscardUnknown: true,
 	}
 
-	if err := unmarshaler.Unmarshal(json, msg); err != nil {
-		slog.Error("failed to unmarshal JSON to protobuf message", slog.Any("error", err.Error()), slog.Any("json", string(json)))
+	if err := unmarshaler.Unmarshal(blob, msg); err != nil {
+		slog.Error("failed to unmarshal JSON to protobuf message", slog.Any("error", err.Error()), slog.Any("json", string(blob)))
 
 		return fmt.Errorf("failed to unmarshal JSON to protobuf message: %w", err)
 	}

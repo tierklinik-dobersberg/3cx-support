@@ -9,18 +9,32 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type VoiceMail struct {
-	ID            primitive.ObjectID `bson:"_id"`
-	Mailbox       primitive.ObjectID `bson:"mailboxId"`
-	ReceiveTime   time.Time          `bson:"receiveTime"`
-	Subject       string             `bson:"subject"`
-	Message       string             `bson:"message,omitempty"`
-	SeenTime      time.Time          `bson:"seenTime,omitempty"`
-	Caller        string             `bson:"caller,omitempty"`
-	CustomerId    string             `bson:"customerId,omitempty"`
-	FileName      string             `bson:"fileName,omitempty"`
-	InboundNumber string             `bson:"inboundNumber,omitempty"`
-}
+type (
+	IMAPConfig struct {
+	}
+
+	Mailbox struct {
+		ID                  primitive.ObjectID `bson:"_id,omitempty"`
+		DisplayName         string             `bson:"displayName"`
+		PollInterval        time.Duration      `bson:"pollInterval"`
+		IMAPConfig          IMAPConfig         `bson:"config"`
+		ExtractCallerRegexp string             `bson:"extractCallerRegexp"`
+		ExtractTargetRegexp string             `bson:"extractTargetRegexp"`
+	}
+
+	VoiceMail struct {
+		ID            primitive.ObjectID `bson:"_id"`
+		Mailbox       primitive.ObjectID `bson:"mailboxId"`
+		ReceiveTime   time.Time          `bson:"receiveTime"`
+		Subject       string             `bson:"subject"`
+		Message       string             `bson:"message,omitempty"`
+		SeenTime      time.Time          `bson:"seenTime,omitempty"`
+		Caller        string             `bson:"caller,omitempty"`
+		CustomerId    string             `bson:"customerId,omitempty"`
+		FileName      string             `bson:"fileName,omitempty"`
+		InboundNumber string             `bson:"inboundNumber,omitempty"`
+	}
+)
 
 func (vm VoiceMail) ToProto() *pbx3cxv1.VoiceMail {
 	pb := &pbx3cxv1.VoiceMail{
