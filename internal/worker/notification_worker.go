@@ -10,12 +10,13 @@ import (
 
 	"github.com/bufbuild/connect-go"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	idmv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func StartNotificationWorker(ctx context.Context, providers *config.Providers) {
+func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, providers *config.Providers) {
 	startTime := time.Now()
 
 	ticker := time.NewTicker(time.Minute)
@@ -39,13 +40,24 @@ func StartNotificationWorker(ctx context.Context, providers *config.Providers) {
 		for _, mb := range mailboxes {
 			lm := l.WithGroup(mb.Id)
 
+			// trigger and wait for the mailbox to sync so we don't miss any mails
+			if err := mng.TriggerSync(ctx, mb.Id); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+
+				lm.ErrorContext(ctx, "failed to trigger mailbox sync", slog.Any("error", err.Error()))
+
+				// still, continue and check if we need to send notifications.
+			}
+
 			// find all unseen messages
 			res, err := providers.MailboxDatabase.ListVoiceMails(ctx, mb.Id, &pbx3cxv1.VoiceMailFilter{
 				Unseen: wrapperspb.Bool(true),
 			})
 
 			if err != nil {
-				lm.ErrorContext(ctx, "failed to load unseen mailboxes", slog.Any("error", err.Error()))
+				lm.ErrorContext(ctx, "failed to load unseen voicemails", slog.Any("error", err.Error()))
 				continue
 			}
 

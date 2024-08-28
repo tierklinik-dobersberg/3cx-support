@@ -26,15 +26,10 @@ type VoiceMailService struct {
 	manager   *voicemail.Manager
 }
 
-func NewVoiceMailService(ctx context.Context, providers *config.Providers) (*VoiceMailService, error) {
-	mng, err := voicemail.NewManager(ctx, providers)
-	if err != nil {
-		return nil, err
-	}
-
+func NewVoiceMailService(ctx context.Context, providers *config.Providers, manager *voicemail.Manager) (*VoiceMailService, error) {
 	svc := &VoiceMailService{
 		providers: providers,
-		manager:   mng,
+		manager:   manager,
 	}
 
 	return svc, nil

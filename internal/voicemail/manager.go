@@ -37,6 +37,18 @@ func NewManager(ctx context.Context, providers *config.Providers) (*Manager, err
 	return mng, mng.start(ctx)
 }
 
+func (mng *Manager) TriggerSync(ctx context.Context, id string) error {
+	mng.l.Lock()
+	box, ok := mng.boxes[id]
+	mng.l.Unlock()
+
+	if !ok {
+		return database.ErrNotFound
+	}
+
+	return box.syncer.TriggerSync(ctx)
+}
+
 func (mng *Manager) start(ctx context.Context) error {
 	mailboxes, err := mng.providers.MailboxDatabase.ListMailboxes(ctx)
 	if err != nil {

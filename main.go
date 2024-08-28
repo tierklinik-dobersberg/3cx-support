@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/services"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/worker"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
@@ -64,6 +66,13 @@ func main() {
 		AllowCredentials: true,
 	}
 
+	// prepare the voicemail sync manager
+	mng, err := voicemail.NewManager(ctx, providers)
+	if err != nil {
+		slog.Error("failed to create voicemail sync-manager", slog.Any("error", err.Error()))
+		os.Exit(-1)
+	}
+
 	// Prepare our servemux and add handlers.
 	serveMux := http.NewServeMux()
 
@@ -74,7 +83,7 @@ func main() {
 	path, handler := pbx3cxv1connect.NewCallServiceHandler(callService, interceptors)
 	serveMux.Handle(path, handler)
 
-	voiceMailSerivce, err := services.NewVoiceMailService(ctx, providers)
+	voiceMailSerivce, err := services.NewVoiceMailService(ctx, providers, mng)
 	if err != nil {
 		logrus.Fatalf("failed to prepare voicemail service: %s", err.Error())
 	}
@@ -104,7 +113,7 @@ func main() {
 	worker.StartFindCustomerWorker(ctx, providers)
 
 	// Start notification worker for voicemails
-	worker.StartNotificationWorker(ctx, providers)
+	worker.StartNotificationWorker(ctx, mng, providers)
 
 	if err := server.Serve(ctx, srv); err != nil {
 		logrus.Fatalf("failed to serve: %s", err)
