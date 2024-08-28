@@ -16,6 +16,8 @@ import (
 )
 
 func StartNotificationWorker(ctx context.Context, providers *config.Providers) {
+	startTime := time.Now()
+
 	ticker := time.NewTicker(time.Minute)
 	lastSentMap := make(map[string]time.Time)
 
@@ -62,6 +64,12 @@ func StartNotificationWorker(ctx context.Context, providers *config.Providers) {
 
 					for _, t := range nfs.SendTimes {
 						sendTimeToday := time.Date(now.Year(), now.Month(), now.Day(), int(t.Hour), int(t.Minute), int(t.Second), 0, time.Local)
+
+						// Do not send notifications for time-of-day entries that
+						// occured before the worker even started
+						if sendTimeToday.Before(startTime) {
+							continue
+						}
 
 						key := mb.Id + fmt.Sprintf("-%d:%d:%d", t.Hour, t.Minute, t.Second)
 						lastSent, ok := lastSentMap[key]
