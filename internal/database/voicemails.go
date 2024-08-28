@@ -255,6 +255,10 @@ func (db *mailboxDatabase) DeleteNotificationSetting(ctx context.Context, mailbo
 		return ErrNotFound
 	}
 
+	if res.ModifiedCount == 0 {
+		return fmt.Errorf("%w: notification-setting with name %q", ErrNotFound, settingName)
+	}
+
 	return nil
 }
 
