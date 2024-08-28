@@ -417,7 +417,12 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 		}
 	}
 
-	res, err := db.records.Find(ctx, filter)
+	res, err := db.records.Find(ctx, filter, options.Find().SetSort(bson.D{
+		{
+			Key:   "receiveTime",
+			Value: -1,
+		},
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform find operation: %w", err)
 	}
