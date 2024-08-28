@@ -251,7 +251,7 @@ func (db *mailboxDatabase) AppendNotificationSetting(ctx context.Context, mailbo
 	// first, try to replace the value
 	replaceResult, err := db.mailboxes.UpdateOne(ctx, filter, bson.M{
 		"$set": bson.M{
-			"notificationsSettings.$[filter]": m,
+			"notificationSettings.$[filter]": m,
 		},
 	}, options.Update().SetArrayFilters(options.ArrayFilters{
 		Filters: []any{
