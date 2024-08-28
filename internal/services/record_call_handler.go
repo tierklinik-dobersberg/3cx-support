@@ -51,7 +51,7 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 		} else {
 			switch len(res.Msg.Results) {
 			case 0:
-				l.ErrorContext(ctx, "no customer record for caller number found", slog.Any("error", err.Error()))
+				l.ErrorContext(ctx, "no customer record for caller number found")
 			case 1:
 				if c := res.Msg.Results[0].Customer; c != nil {
 					l.DebugContext(ctx, "found customer record")
