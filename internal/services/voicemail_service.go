@@ -83,12 +83,19 @@ func (svc *VoiceMailService) DeleteMailbox(ctx context.Context, req *connect.Req
 func (svc *VoiceMailService) UpdateMailbox(ctx context.Context, req *connect.Request[pbx3cxv1.UpdateMailboxRequest]) (*connect.Response[pbx3cxv1.UpdateMailboxResponse], error) {
 	var err error
 
+	l := slog.Default().With(req.Msg.MailboxId)
+
 	switch upd := req.Msg.Update.(type) {
 	case *pbx3cxv1.UpdateMailboxRequest_AddNotificationSetting:
+		l.Info("appending notification settings", slog.Any("name", upd.AddNotificationSetting.Name))
 		err = svc.providers.MailboxDatabase.AppendNotificationSetting(ctx, req.Msg.MailboxId, upd.AddNotificationSetting)
+
 	case *pbx3cxv1.UpdateMailboxRequest_DeleteNotificationSetting:
+		l.Info("deleting notification settings", slog.Any("name", upd.DeleteNotificationSetting))
 		err = svc.providers.MailboxDatabase.DeleteNotificationSetting(ctx, req.Msg.MailboxId, upd.DeleteNotificationSetting)
+
 	case *pbx3cxv1.UpdateMailboxRequest_Mailbox:
+		l.Info("updating mailbox")
 		var mb *pbx3cxv1.Mailbox
 
 		// fetch the current mailbox first since we don't update notification settings here
