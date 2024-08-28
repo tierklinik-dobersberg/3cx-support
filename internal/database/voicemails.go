@@ -248,6 +248,31 @@ func (db *mailboxDatabase) AppendNotificationSetting(ctx context.Context, mailbo
 		return fmt.Errorf("failed to convert protobuf message to bson: %w", err)
 	}
 
+	// first, try to replace the value
+	replaceResult, err := db.mailboxes.UpdateOne(ctx, filter, bson.M{
+		"$set": bson.M{
+			"notificationsSettings.$[filter]": m,
+		},
+	}, options.Update().SetArrayFilters(options.ArrayFilters{
+		Filters: []any{
+			bson.M{
+				"filter": bson.M{
+					"name": setting.Name,
+				},
+			},
+		},
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to replace notification settings: %w", err)
+	}
+
+	// if we modified a document we're done now.
+	if replaceResult.ModifiedCount > 0 {
+		return nil
+	}
+
+	// otherwise, try to push it to the array.
+
 	update := bson.M{
 		"$push": bson.M{
 			"notificationSettings": m,
@@ -256,6 +281,11 @@ func (db *mailboxDatabase) AppendNotificationSetting(ctx context.Context, mailbo
 
 	res, err := db.mailboxes.UpdateOne(ctx, filter, update)
 	if err != nil {
+		// this one is fine as the replacement was the same as the existing one.
+		if mongo.IsDuplicateKeyError(err) {
+			return nil
+		}
+
 		return fmt.Errorf("failed to perform update operation: %w", err)
 	}
 
