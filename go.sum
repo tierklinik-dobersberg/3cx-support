@@ -630,6 +630,8 @@ github.com/tierklinik-dobersberg/apis v0.0.31-0.20240827080123-f9d07c393813 h1:S
 github.com/tierklinik-dobersberg/apis v0.0.31-0.20240827080123-f9d07c393813/go.mod h1:8L4K4/dMvue+C61KN9s8YwMnjjQ+sz/3VIooC+IGigo=
 github.com/tierklinik-dobersberg/apis v0.0.38 h1:eDsma4i35T6ND/QGgzGQgNdynmVYkC9JIv/gY5e4AAU=
 github.com/tierklinik-dobersberg/apis v0.0.38/go.mod h1:8L4K4/dMvue+C61KN9s8YwMnjjQ+sz/3VIooC+IGigo=
+github.com/tierklinik-dobersberg/apis v0.0.39 h1:EvLGt2v4lrzYVZG2xKrsLUXpIZBGmXhQluru6ovUBk8=
+github.com/tierklinik-dobersberg/apis v0.0.39/go.mod h1:8L4K4/dMvue+C61KN9s8YwMnjjQ+sz/3VIooC+IGigo=
 github.com/tierklinik-dobersberg/logger v0.2.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=
 github.com/tierklinik-dobersberg/logger v0.4.0 h1:uD7lFkkTDeqOngjF7ybSUbuk6MFgwNSajwBAZJaEMVw=
 github.com/tierklinik-dobersberg/logger v0.4.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=

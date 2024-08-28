@@ -208,7 +208,7 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 }
 
 func (svc *VoiceMailService) MarkVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.MarkVoiceMailsRequest]) (*connect.Response[pbx3cxv1.MarkVoiceMailsResponse], error) {
-	if err := svc.providers.MailboxDatabase.MarkVoiceMails(ctx, req.Msg.Seen, req.Msg.GetVoicemailIds()); err != nil {
+	if err := svc.providers.MailboxDatabase.MarkVoiceMails(ctx, req.Msg.Seen, req.Msg.Mailbox, req.Msg.GetVoicemailIds()); err != nil {
 		return nil, err
 	}
 

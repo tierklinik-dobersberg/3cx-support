@@ -32,7 +32,7 @@ type MailboxDatabase interface {
 
 	CreateVoiceMail(ctx context.Context, voicemail *pbx3cxv1.VoiceMail) error
 	ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error)
-	MarkVoiceMails(ctx context.Context, seen bool, ids []string) error
+	MarkVoiceMails(ctx context.Context, seen bool, mailbox string, ids []string) error
 	GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error)
 
 	mailsync.Store
@@ -430,24 +430,31 @@ func (db *mailboxDatabase) GetVoicemail(ctx context.Context, id string) (*pbx3cx
 	return model.ToProto(), nil
 }
 
-func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, ids []string) error {
+func (db *mailboxDatabase) MarkVoiceMails(ctx context.Context, seen bool, mailbox string, ids []string) error {
 	oids := make([]primitive.ObjectID, len(ids))
 	for idx, id := range ids {
 		oid, err := primitive.ObjectIDFromHex(id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse voicemail id: %w", err)
 		}
 
 		oids[idx] = oid
 	}
 
-	filter := bson.M{
-		"_id": bson.M{
+	filter := bson.M{}
+
+	if mailbox != "" {
+		filter["mailbox"] = mailbox
+	}
+
+	if len(oids) > 0 {
+		filter["_id"] = bson.M{
 			"$in": oids,
-		},
-		"seenTime": bson.M{
-			"$exists": !seen,
-		},
+		}
+	}
+
+	filter["seenTime"] = bson.M{
+		"$exists": !seen,
 	}
 
 	op := bson.M{
