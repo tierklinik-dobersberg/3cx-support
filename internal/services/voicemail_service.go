@@ -83,7 +83,7 @@ func (svc *VoiceMailService) DeleteMailbox(ctx context.Context, req *connect.Req
 func (svc *VoiceMailService) UpdateMailbox(ctx context.Context, req *connect.Request[pbx3cxv1.UpdateMailboxRequest]) (*connect.Response[pbx3cxv1.UpdateMailboxResponse], error) {
 	var err error
 
-	l := slog.Default().With(req.Msg.MailboxId)
+	l := slog.Default().WithGroup(req.Msg.MailboxId)
 
 	switch upd := req.Msg.Update.(type) {
 	case *pbx3cxv1.UpdateMailboxRequest_AddNotificationSetting:

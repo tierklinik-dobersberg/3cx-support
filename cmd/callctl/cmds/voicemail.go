@@ -41,7 +41,7 @@ func GetVoiceMailCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreateOrUpdateMailboxCommand(root),
 		GetAddNotificationSettingsCommand(root),
-		GetDeleteInboundNumberCommand(root),
+		GetDeleteNotificationSettingCommand(root),
 		GetSearchVoiceMailRecordsCommand(root),
 	)
 
