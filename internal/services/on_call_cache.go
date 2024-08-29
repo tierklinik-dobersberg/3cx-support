@@ -118,7 +118,8 @@ func (cache *OnCallCache) run(ctx context.Context, events <-chan *eventsv1.Event
 				slog.Error("failed to marshal event", "error", err)
 			} else {
 				_, err := cache.providers.Events.Publish(ctx, connect.NewRequest(&eventsv1.Event{
-					Event: pb,
+					Event:    pb,
+					Retained: true, // make the message retained so new subscribers will immediately get the last result
 				}))
 
 				if err != nil {
