@@ -81,7 +81,7 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 	}
 
 	record.Date = date
-	record.AgentUserId = svc.getUserIdForAgent(ctx, record.Agent)
+	record.AgentUserId = svc.GetUserIdForAgent(ctx, record.Agent)
 
 	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
 		return nil, err

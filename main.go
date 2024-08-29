@@ -77,7 +77,12 @@ func main() {
 	serveMux := http.NewServeMux()
 
 	// create a new CallService and add it to the mux.
-	callService := services.New(providers)
+	callService, err := services.New(providers)
+	if err != nil {
+		slog.Error("failed to create call-service", "error", err)
+		os.Exit(-1)
+	}
+
 	serveMux.Handle("/api/external/v1/calllog", http.HandlerFunc(callService.RecordCallHandler))
 
 	path, handler := pbx3cxv1connect.NewCallServiceHandler(callService, interceptors)

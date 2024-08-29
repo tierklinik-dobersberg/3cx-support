@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -15,16 +13,15 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
+	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	idmv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
-	rosterv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/roster/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/mongo"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type CallService struct {
@@ -35,12 +32,32 @@ type CallService struct {
 	// error notification handling for admin users.
 	notifyErrorLock sync.Mutex
 	notifyOnce      sync.Once
+
+	caches map[string]*OnCallCache
 }
 
-func New(p *config.Providers) *CallService {
-	return &CallService{
+func New(p *config.Providers) (*CallService, error) {
+	svc := &CallService{
 		Providers: p,
+		caches:    map[string]*OnCallCache{},
 	}
+
+	// fetch all inbound number
+	numbers, err := p.OverwriteDB.ListInboundNumbers(context.Background())
+	if err != nil {
+		slog.Error("failed to fetch inbound numbers", "error", err)
+	}
+
+	for _, n := range numbers {
+		cache, err := NewOnCallCache(context.Background(), n.Number, p)
+		if err != nil {
+			slog.Error("failed to create on-call cache", "inboundNumber", n.Number, "error", err)
+		} else {
+			svc.caches[n.Number] = cache
+		}
+	}
+
+	return svc, nil
 }
 
 func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3cxv1.GetOnCallRequest]) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
@@ -54,14 +71,14 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 		}
 	}
 
-	response, err := svc.resolveOnCallTarget(ctx, dateTime, req.Msg.IgnoreOverwrites, req.Msg.InboundNumber)
+	response, err := svc.ResolveOnCallTarget(ctx, dateTime, req.Msg.IgnoreOverwrites, req.Msg.InboundNumber)
 	if err != nil {
 		return svc.handleOnCallError(ctx, err)
 	}
 
 	go svc.resetErrorNotification()
 
-	return response, nil
+	return connect.NewResponse(response), nil
 }
 
 func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Request[pbx3cxv1.CreateOverwriteRequest]) (*connect.Response[pbx3cxv1.CreateOverwriteResponse], error) {
@@ -92,7 +109,7 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 	}
 
 	// validate the overwrite has a valid target
-	target, _, err := svc.resolveOverwriteTarget(ctx, model)
+	target, _, err := svc.ResolveOverwriteTarget(ctx, model)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("overwrite does not have a valid target phone number"))
 	}
@@ -132,6 +149,35 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 
 	res := &pbx3cxv1.CreateOverwriteResponse{
 		Overwrite: model.ToProto(),
+	}
+
+	// trigger cache updates
+	go func() {
+		for _, cache := range svc.caches {
+			cache.Trigger()
+		}
+	}()
+
+	// publish an event to the event service
+	if svc.Providers.Events != nil {
+		go func() {
+			evt := &pbx3cxv1.OverwriteCreatedEvent{
+				Overwrite: model.ToProto(),
+			}
+
+			pb, err := anypb.New(evt)
+			if err != nil {
+				log.L(context.Background()).Errorf("failed to publish event: %s", err)
+				return
+			}
+
+			_, err = svc.Providers.Events.Publish(context.Background(), connect.NewRequest(&eventsv1.Event{
+				Event: pb,
+			}))
+			if err != nil {
+				log.L(context.Background()).Errorf("failed to publish event: %s", err)
+			}
+		}()
 	}
 
 	return connect.NewResponse(res), nil
@@ -257,122 +303,7 @@ func (svc *CallService) GetLogsForCustomer(ctx context.Context, req *connect.Req
 	return connect.NewResponse(res), nil
 }
 
-func (svc *CallService) resolveOnCallTarget(ctx context.Context, dateTime time.Time, ignoreOverwrites bool, inboundNumber string) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {
-	var numbers []string
-
-	if inboundNumber == "" && svc.Config.DefaultOnCallInboundNumber != "" {
-		inboundNumber = svc.Config.DefaultOnCallInboundNumber
-	}
-
-	if inboundNumber != "" {
-		numbers = []string{inboundNumber}
-	}
-
-	overwrite, err := svc.OverwriteDB.GetActiveOverwrite(ctx, dateTime, numbers)
-	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, fmt.Errorf("database: %w", err)
-	}
-
-	if overwrite != nil && !ignoreOverwrites {
-		target, profile, err := svc.resolveOverwriteTarget(ctx, *overwrite)
-		if err != nil {
-			return nil, fmt.Errorf("overwrite: %w", err)
-		}
-
-		res := &pbx3cxv1.GetOnCallResponse{
-			IsOverwrite: true,
-			OnCall: []*pbx3cxv1.OnCall{
-				{
-					TransferTarget: target,
-					Profile:        profile,
-					Until:          timestamppb.New(overwrite.To),
-				},
-			},
-			PrimaryTransferTarget: target,
-		}
-
-		return connect.NewResponse(res), nil
-	}
-
-	var inboundNumberModel structs.InboundNumber
-
-	if inboundNumber != "" {
-		var err error
-		inboundNumberModel, err = svc.OverwriteDB.GetInboundNumber(ctx, inboundNumber)
-		if err != nil {
-			log.L(ctx).Errorf("failed to get inbound number model for %q, using default: %s", inboundNumber, err)
-		}
-	}
-
-	if inboundNumberModel.RosterTypeName == "" {
-		inboundNumberModel.RosterTypeName = svc.Config.RosterTypeName
-	}
-
-	workingStaff, err := svc.Roster.GetWorkingStaff2(ctx, connect.NewRequest(&rosterv1.GetWorkingStaffRequest2{
-		Query: &rosterv1.GetWorkingStaffRequest2_Time{
-			Time: timestamppb.New(dateTime),
-		},
-		// DEPRECATED: remove once everything is set up correctly
-		OnCall:         true,
-		RosterTypeName: inboundNumberModel.RosterTypeName,
-		ShiftTags:      inboundNumberModel.RosterShiftTags,
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("roster: failed to get working staff from RosterService: %w", err)
-	}
-
-	log.L(ctx).Infof("received response for RosterService.GetWorkingStaff: userIds=%#v rosterIds=%#v", workingStaff.Msg.UserIds, workingStaff.Msg.RosterId)
-
-	if len(workingStaff.Msg.UserIds) == 0 {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no roster defined for %s", dateTime))
-	}
-
-	res := &pbx3cxv1.GetOnCallResponse{
-		IsOverwrite: false,
-	}
-
-	for _, userId := range workingStaff.Msg.UserIds {
-		profile, err := svc.fetchUserProfile(ctx, userId)
-		if err != nil {
-			log.L(ctx).Errorf("failed to fetch user with id %q: %s", userId, err)
-
-			continue
-		}
-
-		var until time.Time
-		for _, shift := range workingStaff.Msg.CurrentShifts {
-			if !slices.Contains(shift.AssignedUserIds, userId) {
-				continue
-			}
-
-			if shift.To.AsTime().Before(until) || until.IsZero() {
-				until = shift.To.AsTime()
-			}
-		}
-
-		target := svc.getUserTransferTarget(profile)
-		if target != "" {
-			res.OnCall = append(res.OnCall, &pbx3cxv1.OnCall{
-				Profile:        profile,
-				TransferTarget: target,
-				Until:          timestamppb.New(until),
-			})
-		} else {
-			log.L(ctx).Warnf("user %q (id=%q) marked as on-call but no transfer target available", profile.User.Username, userId)
-		}
-	}
-
-	if len(res.OnCall) == 0 {
-		return nil, fmt.Errorf("roster: failed to determine on-call users")
-	}
-
-	// Set the primary transfer-target from the first on-call user
-	res.PrimaryTransferTarget = res.OnCall[0].TransferTarget
-
-	return connect.NewResponse(res), nil
-}
-
-func (svc *CallService) getUserIdForAgent(ctx context.Context, agent string) string {
+func (svc *CallService) GetUserIdForAgent(ctx context.Context, agent string) string {
 	profiles, err := svc.Users.ListUsers(ctx, connect.NewRequest(&idmv1.ListUsersRequest{
 		FieldMask: &fieldmaskpb.FieldMask{
 			Paths: []string{"profiles.user.avatar"},
@@ -421,85 +352,6 @@ func (svc *CallService) handleOnCallError(ctx context.Context, err error) (*conn
 	}
 
 	return nil, err
-}
-
-func (svc *CallService) resolveOverwriteTarget(ctx context.Context, overwrite structs.Overwrite) (string, *idmv1.Profile, error) {
-	target := overwrite.PhoneNumber
-	var profile *idmv1.Profile
-
-	if overwrite.UserID != "" {
-		var err error
-		profile, err = svc.fetchUserProfile(ctx, overwrite.UserID)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed to fetch user with id %q: %w", overwrite.UserID, err)
-		}
-
-		target = svc.getUserTransferTarget(profile)
-	}
-
-	target = strings.ReplaceAll(target, " ", "")
-	target = strings.ReplaceAll(target, "-", "")
-	target = strings.ReplaceAll(target, "/", "")
-
-	if target == "" {
-		return "", nil, fmt.Errorf("failed to get transfer target for overwrite")
-	}
-
-	// verify the target is actually a number
-	verify := target
-	if strings.HasPrefix(target, "+") {
-		verify = strings.TrimPrefix(verify, "+")
-	}
-	if _, err := strconv.ParseInt(verify, 10, 0); err != nil {
-		return "", nil, fmt.Errorf("invalid transfer target: expected a number but got %q", target)
-	}
-
-	return target, profile, nil
-}
-
-func (svc *CallService) fetchUserProfile(ctx context.Context, userId string) (*idmv1.Profile, error) {
-	profile, err := svc.Users.GetUser(ctx, connect.NewRequest(&idmv1.GetUserRequest{
-		Search: &idmv1.GetUserRequest_Id{
-			Id: userId,
-		},
-		FieldMask: &fieldmaskpb.FieldMask{
-			Paths: []string{"profile.user.avatar"},
-		},
-		ExcludeFields: true,
-	}))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user with id %q: %w", userId, err)
-	}
-
-	return profile.Msg.GetProfile(), nil
-}
-
-func (svc *CallService) getUserTransferTarget(profile *idmv1.Profile) string {
-	if extrapb := profile.GetUser().GetExtra(); extrapb != nil {
-		for _, key := range svc.Config.UserPhoneExtensionKeys {
-			phoneExtension, ok := extrapb.Fields[key]
-
-			if !ok {
-				continue
-			}
-
-			switch v := phoneExtension.Kind.(type) {
-			case *structpb.Value_StringValue:
-				return v.StringValue
-			case *structpb.Value_NumberValue:
-				return fmt.Sprintf("%d", int(v.NumberValue))
-			default:
-				logrus.Warnf("unsupported value type %T for phoneExtension key %q", phoneExtension.Kind, key)
-			}
-		}
-	}
-
-	if pp := profile.GetUser().GetPrimaryPhoneNumber(); pp != nil {
-		return pp.Number
-	}
-
-	return ""
 }
 
 func (svc *CallService) sendNotificationToAdmins(ctx context.Context, remoteUserID string, msg string) error {
