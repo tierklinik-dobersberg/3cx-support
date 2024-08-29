@@ -103,7 +103,7 @@ func (cache *OnCallCache) run(ctx context.Context, events <-chan *eventsv1.Event
 				}()
 			}
 
-			slog.Info("cache update complete", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
+			slog.Info("cache update complete, new on-call target found", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
 
 			evt := &pbx3cxv1.OnCallChangeEvent{
 				OnCall:                onCall.OnCall,
@@ -125,6 +125,8 @@ func (cache *OnCallCache) run(ctx context.Context, events <-chan *eventsv1.Event
 					slog.Error("failed to publish event", "error", err.Error())
 				}
 			}
+		} else {
+			slog.Info("cache update complete, on-call target unchanged", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
 		}
 
 		select {

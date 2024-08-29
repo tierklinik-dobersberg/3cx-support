@@ -204,6 +204,13 @@ func (svc *CallService) DeleteOverwrite(ctx context.Context, req *connect.Reques
 		return nil, err
 	}
 
+	// trigger cache updates
+	go func() {
+		for _, cache := range svc.caches {
+			cache.Trigger()
+		}
+	}()
+
 	return connect.NewResponse(&pbx3cxv1.DeleteOverwriteResponse{}), nil
 }
 
