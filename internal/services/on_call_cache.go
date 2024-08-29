@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bufbuild/connect-go"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
@@ -14,6 +15,7 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/cli"
 	"github.com/tierklinik-dobersberg/apis/pkg/events"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type OnCallCache struct {
@@ -70,11 +72,60 @@ func (cache *OnCallCache) run(ctx context.Context, events <-chan *eventsv1.Event
 			continue
 		}
 
-		slog.Info("cache update complete", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
-
+		changed := false
 		cache.l.Lock()
+
+		if cache.onCall == nil {
+			changed = true
+		} else {
+			changed = onCall.PrimaryTransferTarget != cache.onCall.PrimaryTransferTarget
+		}
+
 		cache.onCall = onCall
 		cache.l.Unlock()
+
+		if changed {
+			var t time.Time
+
+			for _, onCall := range onCall.OnCall {
+				if t.IsZero() || onCall.Until.AsTime().Before(t) {
+					t = onCall.Until.AsTime()
+				}
+			}
+
+			if !t.IsZero() {
+				go func() {
+					slog.Info("waiting for on-call to change", "expectedChangeTime", t.Format(time.RFC3339))
+					<-time.After(time.Until(t))
+
+					slog.Info("triggering update since on-call is about to change")
+					cache.Trigger()
+				}()
+			}
+
+			slog.Info("cache update complete", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
+
+			evt := &pbx3cxv1.OnCallChangeEvent{
+				OnCall:                onCall.OnCall,
+				RosterDate:            onCall.RosterDate,
+				IsOverwrite:           onCall.IsOverwrite,
+				PrimaryTransferTarget: onCall.PrimaryTransferTarget,
+				InboundNumber:         cache.inboundNumber,
+			}
+
+			pb, err := anypb.New(evt)
+			if err != nil {
+				slog.Error("failed to marshal event", "error", err)
+			} else {
+				_, err := cache.providers.Events.Publish(ctx, connect.NewRequest(&eventsv1.Event{
+					Event: pb,
+				}))
+
+				if err != nil {
+					slog.Error("failed to publish event", "error", err.Error())
+				}
+			}
+		}
 
 		select {
 		case <-ticker.C:
