@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bufbuild/connect-go"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
@@ -15,7 +14,6 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/cli"
 	"github.com/tierklinik-dobersberg/apis/pkg/events"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type OnCallCache struct {
@@ -113,19 +111,7 @@ func (cache *OnCallCache) run(ctx context.Context, events <-chan *eventsv1.Event
 				InboundNumber:         cache.inboundNumber,
 			}
 
-			pb, err := anypb.New(evt)
-			if err != nil {
-				slog.Error("failed to marshal event", "error", err)
-			} else {
-				_, err := cache.providers.Events.Publish(ctx, connect.NewRequest(&eventsv1.Event{
-					Event:    pb,
-					Retained: true, // make the message retained so new subscribers will immediately get the last result
-				}))
-
-				if err != nil {
-					slog.Error("failed to publish event", "error", err.Error())
-				}
-			}
+			cache.providers.PublishEvent(evt, true)
 		} else {
 			slog.Info("cache update complete, on-call target unchanged", "inboundNumber", cache.inboundNumber, "on-call", onCall.PrimaryTransferTarget)
 		}

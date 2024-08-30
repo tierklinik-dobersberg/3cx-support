@@ -87,6 +87,10 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 		return nil, err
 	}
 
+	svc.Providers.PublishEvent(&pbx3cxv1.CallRecordReceived{
+		CallEntry: record.ToProto(),
+	}, false)
+
 	return connect.NewResponse(&emptypb.Empty{}), nil
 }
 

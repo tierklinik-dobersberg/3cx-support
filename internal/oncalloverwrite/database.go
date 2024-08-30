@@ -42,10 +42,10 @@ type Database interface {
 
 	// DeleteOverwrite deletes the roster overwrite for the given
 	// day.
-	DeleteActiveOverwrite(ctx context.Context, date time.Time, inboundNumber []string) error
+	DeleteActiveOverwrite(ctx context.Context, date time.Time, inboundNumber []string) (*structs.Overwrite, error)
 
 	// DeleteOverwrite deletes the roster overwrite with the given ID
-	DeleteOverwrite(ctx context.Context, id string) error
+	DeleteOverwrite(ctx context.Context, id string) (*structs.Overwrite, error)
 
 	// CreateInboundNumber creates a new inbound number
 	CreateInboundNumber(ctx context.Context, model structs.InboundNumber) error
@@ -307,11 +307,11 @@ func getInboundNumbersFilter(inboundNumbers []string) bson.A {
 	return inboundNumbersFilter
 }
 
-func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inboundNumbers []string) error {
+func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inboundNumbers []string) (*structs.Overwrite, error) {
 	opts := options.FindOneAndUpdate().
 		SetSort(bson.D{
 			{Key: "createdAt", Value: -1},
-		})
+		}).SetReturnDocument(options.After)
 
 	res := db.overwrites.FindOneAndUpdate(
 		ctx,
@@ -334,18 +334,23 @@ func (db *database) DeleteActiveOverwrite(ctx context.Context, d time.Time, inbo
 	)
 
 	if res.Err() != nil {
-		return res.Err()
+		return nil, res.Err()
 	}
 
-	return nil
+	var ov structs.Overwrite
+	if err := res.Decode(&ov); err != nil {
+		return nil, fmt.Errorf("failed to decode overwrite: %w", err)
+	}
+
+	return &ov, nil
 }
 
-func (db *database) DeleteOverwrite(ctx context.Context, id string) error {
+func (db *database) DeleteOverwrite(ctx context.Context, id string) (*structs.Overwrite, error) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to parse overwrite id: %w", err)
 	}
-	res, err := db.overwrites.UpdateMany(
+	res := db.overwrites.FindOneAndUpdate(
 		ctx,
 		bson.M{
 			"_id":     oid,
@@ -356,17 +361,20 @@ func (db *database) DeleteOverwrite(ctx context.Context, id string) error {
 				"deleted": true,
 			},
 		},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	)
 
-	if err != nil {
-		return err
+	if res.Err() != nil {
+		return nil, res.Err()
 	}
 
-	if res.ModifiedCount == 0 {
-		return mongo.ErrNoDocuments
+	var ov structs.Overwrite
+
+	if err := res.Decode(&ov); err != nil {
+		return nil, fmt.Errorf("failed to decode overwrite: %w", err)
 	}
 
-	return nil
+	return &ov, nil
 }
 
 func (db *database) CreateInboundNumber(ctx context.Context, model structs.InboundNumber) error {

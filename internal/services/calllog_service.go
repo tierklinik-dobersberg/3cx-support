@@ -13,14 +13,12 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
-	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	idmv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/mongo"
-	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -160,37 +158,25 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 
 	// publish an event to the event service
 	if svc.Providers.Events != nil {
-		go func() {
-			evt := &pbx3cxv1.OverwriteCreatedEvent{
-				Overwrite: model.ToProto(),
-			}
-
-			pb, err := anypb.New(evt)
-			if err != nil {
-				log.L(context.Background()).Errorf("failed to publish event: %s", err)
-				return
-			}
-
-			_, err = svc.Providers.Events.Publish(context.Background(), connect.NewRequest(&eventsv1.Event{
-				Event: pb,
-			}))
-			if err != nil {
-				log.L(context.Background()).Errorf("failed to publish event: %s", err)
-			}
-		}()
+		svc.Providers.PublishEvent(&pbx3cxv1.OverwriteCreatedEvent{
+			Overwrite: model.ToProto(),
+		}, false)
 	}
 
 	return connect.NewResponse(res), nil
 }
 
 func (svc *CallService) DeleteOverwrite(ctx context.Context, req *connect.Request[pbx3cxv1.DeleteOverwriteRequest]) (*connect.Response[pbx3cxv1.DeleteOverwriteResponse], error) {
-	var err error
+	var (
+		err error
+		ov  *structs.Overwrite
+	)
 
 	switch v := req.Msg.Selector.(type) {
 	case *pbx3cxv1.DeleteOverwriteRequest_OverwriteId:
-		err = svc.OverwriteDB.DeleteOverwrite(ctx, v.OverwriteId)
+		ov, err = svc.OverwriteDB.DeleteOverwrite(ctx, v.OverwriteId)
 	case *pbx3cxv1.DeleteOverwriteRequest_ActiveAt:
-		err = svc.OverwriteDB.DeleteActiveOverwrite(ctx, v.ActiveAt.AsTime(), req.Msg.InboundNumbers.GetNumbers())
+		ov, err = svc.OverwriteDB.DeleteActiveOverwrite(ctx, v.ActiveAt.AsTime(), req.Msg.InboundNumbers.GetNumbers())
 
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid or unsupported selector"))
@@ -210,6 +196,10 @@ func (svc *CallService) DeleteOverwrite(ctx context.Context, req *connect.Reques
 			cache.Trigger()
 		}
 	}()
+
+	svc.Providers.PublishEvent(&pbx3cxv1.OverwriteDeletedEvent{
+		Overwrite: ov.ToProto(),
+	}, false)
 
 	return connect.NewResponse(&pbx3cxv1.DeleteOverwriteResponse{}), nil
 }

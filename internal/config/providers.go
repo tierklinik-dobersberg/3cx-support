@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/oncalloverwrite"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
+	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1/eventsv1connect"
 	idmv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1/idmv1connect"
@@ -26,6 +28,8 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -282,4 +286,22 @@ func (svc *Providers) GetUserTransferTarget(profile *idmv1.Profile) string {
 	}
 
 	return ""
+}
+
+func (svc *Providers) PublishEvent(event proto.Message, retained bool) {
+	go func() {
+		pb, err := anypb.New(event)
+		if err != nil {
+			slog.Error("failed to convert protobuf message to anypb.Any", "error", err, "messageType", proto.MessageName(event))
+		}
+
+		evt := &eventsv1.Event{
+			Event:    pb,
+			Retained: retained,
+		}
+
+		if _, err := svc.Events.Publish(context.Background(), connect.NewRequest(evt)); err != nil {
+			slog.Error("failed to publish event", "error", err, "messageType", proto.MessageName(event))
+		}
+	}()
 }
