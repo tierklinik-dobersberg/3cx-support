@@ -293,6 +293,7 @@ func (svc *Providers) PublishEvent(event proto.Message, retained bool) {
 		pb, err := anypb.New(event)
 		if err != nil {
 			slog.Error("failed to convert protobuf message to anypb.Any", "error", err, "messageType", proto.MessageName(event))
+			return
 		}
 
 		evt := &eventsv1.Event{
