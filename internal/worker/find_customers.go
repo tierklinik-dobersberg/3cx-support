@@ -2,6 +2,8 @@ package worker
 
 import (
 	"context"
+	"slices"
+	"sort"
 	"time"
 
 	"github.com/bufbuild/connect-go"
@@ -23,6 +25,15 @@ func StartFindCustomerWorker(ctx context.Context, providers *config.Providers) {
 				log.L(ctx).Errorf("failed to find distinct, unidentified numbers: %s", err)
 				return
 			}
+
+			res2, err := providers.MailboxDatabase.FindDistinctNumbersWithoutCustomers(ctx)
+			if err != nil {
+				log.L(ctx).Errorf("failed to find distinct, unidentified numbers in voicemails: %s", err)
+			}
+
+			res = append(res, res2...)
+			sort.Stable(sort.StringSlice(res))
+			slices.Compact(res)
 
 			log.L(ctx).Infof("found %d distinct numbers that are not associated with a customer record", len(res))
 
@@ -47,6 +58,10 @@ func StartFindCustomerWorker(ctx context.Context, providers *config.Providers) {
 				for _, c := range queryResult.Msg.Results {
 					for _, number := range c.Customer.PhoneNumbers {
 						if err := providers.CallLogDB.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
+							log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+						}
+
+						if err := providers.MailboxDatabase.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
 							log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
 						}
 					}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
@@ -30,6 +31,8 @@ type MailboxDatabase interface {
 	DeleteNotificationSetting(ctx context.Context, mailbox, name string) error
 	UpdateMailbox(ctx context.Context, mb *pbx3cxv1.Mailbox) error
 
+	UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error
+	FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error)
 	CreateVoiceMail(ctx context.Context, voicemail *pbx3cxv1.VoiceMail) error
 	ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error)
 	MarkVoiceMails(ctx context.Context, seen bool, mailbox string, ids []string) error
@@ -324,6 +327,49 @@ func (db *mailboxDatabase) DeleteNotificationSetting(ctx context.Context, mailbo
 	if res.ModifiedCount == 0 {
 		return fmt.Errorf("%w: notification-setting with name %q", ErrNotFound, settingName)
 	}
+
+	return nil
+}
+
+func (db *mailboxDatabase) FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error) {
+	res, err := db.records.Distinct(ctx, "caller", bson.M{
+		"customerId": bson.M{
+			"$exists": false,
+		},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var result = make([]string, 0, len(res))
+
+	for _, r := range res {
+		if s, ok := r.(string); ok {
+			result = append(result, s)
+		}
+	}
+
+	return result, nil
+}
+
+func (db *mailboxDatabase) UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error {
+	res, err := db.records.UpdateMany(ctx, bson.M{
+		"caller": number,
+		"customerId": bson.M{
+			"$exists": false,
+		},
+	}, bson.M{
+		"$set": bson.M{
+			"customerId": customerId,
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update customers: %w", err)
+	}
+
+	log.L(ctx).Infof("updated %d customer entries", res.ModifiedCount)
 
 	return nil
 }
