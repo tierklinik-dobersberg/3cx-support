@@ -60,7 +60,7 @@ func (mng *Manager) start(ctx context.Context) error {
 
 	var merr = new(multierror.Error)
 	for _, mb := range mailboxes {
-		box, err := NewMailboxSyncer(ctx, mng.providers.Config.VoiceMailStoragePath, mng.Manager, mng.providers.MailboxDatabase, mng.providers.Customer, mb)
+		box, err := NewMailboxSyncer(ctx, mng.providers.Config.VoiceMailStoragePath, mng.Manager, mng.providers, mb)
 		if err != nil {
 			merr.Errors = append(merr.Errors, fmt.Errorf("failed to create mailbox %q: %w", mb.Id, err))
 			continue
@@ -98,8 +98,7 @@ func (mng *Manager) createSyncer(mb *pbx3cxv1.Mailbox) (*Mailbox, error) {
 		context.Background(),
 		mng.providers.Config.VoiceMailStoragePath,
 		mng.Manager,
-		mng.providers.MailboxDatabase,
-		mng.providers.Customer,
+		mng.providers,
 		mb,
 	)
 }

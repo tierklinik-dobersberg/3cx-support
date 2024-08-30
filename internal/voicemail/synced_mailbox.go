@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
-	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1/customerv1connect"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
 	"github.com/tierklinik-dobersberg/mailbox"
@@ -29,16 +28,14 @@ type Mailbox struct {
 	targetRegexp *regexp.Regexp
 	name         string
 	storagePath  string
-	database     database.MailboxDatabase
-	customerCli  customerv1connect.CustomerServiceClient
+	providers    *config.Providers
 }
 
 func NewMailboxSyncer(
 	ctx context.Context,
 	storagePath string,
 	mng *mailsync.Manager,
-	database database.MailboxDatabase,
-	customerCli customerv1connect.CustomerServiceClient,
+	providers *config.Providers,
 	mb *pbx3cxv1.Mailbox,
 ) (*Mailbox, error) {
 
@@ -59,9 +56,8 @@ func NewMailboxSyncer(
 	box := &Mailbox{
 		syncer:      syncer,
 		name:        mb.Id,
-		database:    database,
+		providers:   providers,
 		storagePath: storagePath,
-		customerCli: customerCli,
 	}
 	syncer.OnMessage(box)
 
@@ -91,7 +87,7 @@ func (box *Mailbox) Dispose() error {
 }
 
 func (box *Mailbox) getCustomer(ctx context.Context, caller string) (*customerv1.Customer, error) {
-	res, err := box.customerCli.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
+	res, err := box.providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
 		Queries: []*customerv1.CustomerQuery{
 			{
 				Query: &customerv1.CustomerQuery_PhoneNumber{
@@ -237,9 +233,13 @@ func (box *Mailbox) HandleMail(ctx context.Context, mail *mailbox.EMail) {
 		}
 	}
 
-	if err := box.database.CreateVoiceMail(ctx, record); err != nil {
+	if err := box.providers.MailboxDatabase.CreateVoiceMail(ctx, record); err != nil {
 		slog.ErrorContext(ctx, "failed to create voicemail record", slog.Any("error", err.Error()))
 	}
+
+	box.providers.PublishEvent(&pbx3cxv1.VoiceMailReceivedEvent{
+		Voicemail: record,
+	}, false)
 
 	slog.InfoContext(ctx, "new voicemail received", slog.Any("caller", caller), slog.Any("filePath", filePath), slog.Any("target", target))
 }
