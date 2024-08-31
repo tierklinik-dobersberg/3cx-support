@@ -6,14 +6,14 @@ toolchain go1.22.5
 
 require (
 	github.com/bufbuild/connect-go v1.10.0
-	github.com/bufbuild/protovalidate-go v0.6.4
+	github.com/bufbuild/protovalidate-go v0.6.5
 	github.com/ghodss/yaml v1.0.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nyaruka/phonenumbers v1.4.0
 	github.com/sethvargo/go-envconfig v1.1.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
-	github.com/tierklinik-dobersberg/apis v0.0.44
+	github.com/tierklinik-dobersberg/apis v0.0.46-0.20240831060340-e640b572087a
 	github.com/tierklinik-dobersberg/mailbox v0.0.4
 	go.mongodb.org/mongo-driver v1.16.1
 	golang.org/x/sync v0.8.0
@@ -37,7 +37,7 @@ require (
 	github.com/mxk/go-imap v0.0.0-20150429134902-531c36c3f12d // indirect
 	github.com/paulrosania/go-charset v0.0.0-20190326053356-55c9d7a5834c // indirect
 	github.com/ppacher/system-conf v0.10.2 // indirect
-	github.com/rs/cors v1.11.0 // indirect
+	github.com/rs/cors v1.11.1 // indirect
 	github.com/sebest/xff v0.0.0-20210106013422-671bd2870b3a // indirect
 	github.com/sloonz/go-qprintable v0.0.0-20210417175225-715103f9e6eb // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -52,7 +52,7 @@ require (
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240826202546-f6391c0de4c7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240826202546-f6391c0de4c7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240827150818-7e3bb234dfed // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
