@@ -167,6 +167,10 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 	}
 
 	for _, userId := range workingStaff.Msg.UserIds {
+		if inboundNumberModel.ResultLimit > 0 && len(res.OnCall) >= inboundNumberModel.ResultLimit {
+			break
+		}
+
 		profile, err := svc.FetchUserProfile(ctx, userId)
 		if err != nil {
 			log.L(ctx).Errorf("failed to fetch user with id %q: %s", userId, err)

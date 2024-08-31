@@ -11,6 +11,7 @@ type InboundNumber struct {
 	DisplayName     string             `bson:"display_name,omitempty"`
 	RosterTypeName  string             `bson:"roster_type_name,omitempty"`
 	RosterShiftTags []string           `bson:"roster_shift_tags,omitempty"`
+	ResultLimit     int                `bson:"result_limit,omitempty"`
 }
 
 func (in InboundNumber) ToProto() *pbx3cxv1.InboundNumber {
@@ -19,5 +20,6 @@ func (in InboundNumber) ToProto() *pbx3cxv1.InboundNumber {
 		DisplayName:     in.DisplayName,
 		RosterShiftTags: in.RosterShiftTags,
 		RosterTypeName:  in.RosterTypeName,
+		ResultLimit:     int32(in.ResultLimit),
 	}
 }

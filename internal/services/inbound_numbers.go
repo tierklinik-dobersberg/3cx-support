@@ -17,6 +17,7 @@ func (svc *CallService) CreateInboundNumber(ctx context.Context, req *connect.Re
 		DisplayName:     req.Msg.DisplayName,
 		RosterTypeName:  req.Msg.RosterTypeName,
 		RosterShiftTags: req.Msg.RosterShiftTags,
+		ResultLimit:     int(req.Msg.ResultLimit),
 	}
 
 	err := svc.OverwriteDB.CreateInboundNumber(ctx, model)
