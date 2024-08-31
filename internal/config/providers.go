@@ -149,8 +149,6 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 		Query: &rosterv1.GetWorkingStaffRequest2_Time{
 			Time: timestamppb.New(dateTime),
 		},
-		// DEPRECATED: remove once everything is set up correctly
-		OnCall:         true,
 		RosterTypeName: inboundNumberModel.RosterTypeName,
 		ShiftTags:      inboundNumberModel.RosterShiftTags,
 	}))
