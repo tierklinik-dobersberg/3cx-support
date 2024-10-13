@@ -108,6 +108,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 						}
 					}
 				}
+			} else {
+				slog.Info("no unseen voicemails")
 			}
 		}
 	}()
