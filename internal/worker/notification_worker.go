@@ -101,9 +101,10 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 									}
 								}
 							}
+
+							lastSentMap[key] = sendTimeToday
 						}
 
-						lastSentMap[key] = sendTimeToday
 					}
 				}
 			}
