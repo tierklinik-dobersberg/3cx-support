@@ -27,6 +27,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 	go func() {
 		select {
 		case <-ctx.Done():
+			slog.Info("notification worker cancelled")
+
 			return
 		case <-ticker.C:
 		}
