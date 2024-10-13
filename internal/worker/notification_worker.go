@@ -101,6 +101,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 									}
 								}
 							}
+
+							lastSentMap[key] = sendTimeToday
 						} else {
 							lnfs.Info("not sending notification", "last", lastSent, "next", sendTimeToday)
 						}
