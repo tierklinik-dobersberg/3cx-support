@@ -81,7 +81,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 
 						// Do not send notifications for time-of-day entries that
 						// occured before the worker even started
-						if sendTimeToday.Before(startTime) {
+						if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
 							continue
 						}
 
