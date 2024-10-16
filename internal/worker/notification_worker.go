@@ -65,7 +65,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 
 			if len(res) > 0 {
 				// iterate over all notification settings
-				for _, nfs := range mb.NotificationSettings {
+				for idx, nfs := range mb.NotificationSettings {
 					lnfs := lm.WithGroup(nfs.Name)
 
 					reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
@@ -85,7 +85,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 							continue
 						}
 
-						key := mb.Id + fmt.Sprintf("-%d:%d:%d", t.Hour, t.Minute, t.Second)
+						key := mb.Id + fmt.Sprintf("-%d-%d:%d:%d", idx, t.Hour, t.Minute, t.Second)
 						lastSent, ok := lastSentMap[key]
 
 						if !ok || lastSent.Before(sendTimeToday) {
