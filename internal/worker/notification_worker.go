@@ -68,7 +68,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 				for _, nfs := range mb.NotificationSettings {
 					lnfs := lm.WithGroup(nfs.Name)
 
-					reqs, err := newNotificationRequests(mb, nfs, len(res), lnfs)
+					reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
 					if err != nil {
 						lnfs.ErrorContext(ctx, "failed to create notification requests", slog.Any("error", err.Error()))
 						continue
@@ -95,13 +95,14 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 								res, err := providers.Notify.SendNotification(ctx, connect.NewRequest(r))
 								if err != nil {
 									lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", err.Error()))
-								}
-
-								for _, d := range res.Msg.Deliveries {
-									if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
-										lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
+								} else {
+									for _, d := range res.Msg.Deliveries {
+										if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
+											lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
+										}
 									}
 								}
+
 							}
 
 							lastSentMap[key] = sendTimeToday
@@ -117,7 +118,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 	}()
 }
 
-func newNotificationRequests(mb *pbx3cxv1.Mailbox, nfs *pbx3cxv1.NotificationSettings, count int, log *slog.Logger) ([]*idmv1.SendNotificationRequest, error) {
+func newNotificationRequests(sender string, mb *pbx3cxv1.Mailbox, nfs *pbx3cxv1.NotificationSettings, count int, log *slog.Logger) ([]*idmv1.SendNotificationRequest, error) {
 	// create and parse the message and subject templates
 	msgTmpl, err := template.New("").Parse(nfs.MessageTemplate)
 	if err != nil {
@@ -151,7 +152,9 @@ func newNotificationRequests(mb *pbx3cxv1.Mailbox, nfs *pbx3cxv1.NotificationSet
 	var results []*idmv1.SendNotificationRequest
 
 	for _, nType := range nfs.Types {
-		req := &idmv1.SendNotificationRequest{}
+		req := &idmv1.SendNotificationRequest{
+			SenderUserId: sender,
+		}
 
 		switch v := nfs.Recipients.(type) {
 		case *pbx3cxv1.NotificationSettings_RoleIds:

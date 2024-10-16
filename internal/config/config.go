@@ -27,6 +27,7 @@ type Config struct {
 	DefaultOnCallInboundNumber string   `env:"DEFAULT_INBOUND_NUMBER" json:"defaultInboundNumber"`
 	VoiceMailStoragePath       string   `env:"STORAGE_PATH" json:"storagePath"`
 	EventsServiceURL           string   `env:"EVENTS_SERVICE_URL" json:"eventsServiceUrl"`
+	NotificationSenderId       string   `env:"NOTIFICATION_SENDER_ID" json:"notificationSenderId"`
 }
 
 func LoadConfig(ctx context.Context, path string) (*Config, error) {
