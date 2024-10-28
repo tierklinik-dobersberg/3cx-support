@@ -115,7 +115,7 @@ func main() {
 		logrus.Fatalf("failed to create service catalog client: %s", err)
 	}
 
-	if err := discovery.Register(ctx, catalog, discovery.ServiceInstance{
+	if err := discovery.Register(ctx, catalog, &discovery.ServiceInstance{
 		Name:    wellknown.Pbx3cxV1ServiceScope,
 		Address: cfg.ListenAddress,
 	}); err != nil {
