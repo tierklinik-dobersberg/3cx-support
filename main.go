@@ -16,6 +16,7 @@ import (
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1/pbx3cxv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/cors"
+	"github.com/tierklinik-dobersberg/apis/pkg/discovery"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery/consuldiscover"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery/wellknown"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
@@ -110,16 +111,15 @@ func main() {
 
 	// Register the services at the service catalog
 	catalog, err := consuldiscover.NewFromEnv()
-	if err != ni l{
+	if err != nil {
 		logrus.Fatalf("failed to create service catalog client: %s", err)
 	}
 
-	if err := wellknown.CallService.Register(ctx, catalog, cfg.ListenAddress); err != nil {
+	if err := discovery.Register(ctx, catalog, discovery.ServiceInstance{
+		Name:    wellknown.Pbx3cxV1ServiceScope,
+		Address: cfg.ListenAddress,
+	}); err != nil {
 		logrus.Fatalf("failed to register call-service at service catalog: %s", err)
-	}
-
-	if err := wellknown.VoiceMailService.Register(ctx, catalog, cfg.ListenAddress); err != nil {
-		logrus.Fatalf("failed to register voice-mail-service at service catalog: %s", err)
 	}
 
 	// Create the server
