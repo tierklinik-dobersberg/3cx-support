@@ -22,7 +22,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 	ticker := time.NewTicker(time.Minute)
 	lastSentMap := make(map[string]time.Time)
 
-	l := slog.Default().WithGroup("notification-worker").With("subsystem", "notification-worker")
+	l := slog.Default().With("subsystem", "notification-worker")
 
 	go func() {
 		for {
