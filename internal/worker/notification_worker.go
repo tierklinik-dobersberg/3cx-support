@@ -22,7 +22,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 	ticker := time.NewTicker(time.Minute)
 	lastSentMap := make(map[string]time.Time)
 
-	l := slog.Default().WithGroup("notification-worker")
+	l := slog.Default().WithGroup("notification-worker").With("subsystem", "notification-worker")
 
 	go func() {
 		for {
@@ -34,20 +34,23 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 			case <-ticker.C:
 			}
 
-			l.Info("fetching unseen voicemails ...")
-
 			// fetch all voicemail boxes
 			mailboxes, err := providers.MailboxDatabase.ListMailboxes(ctx)
 			if err != nil {
 				l.ErrorContext(ctx, "failed to retrieve mailbox list", slog.Any("error", err.Error()))
 			}
 
-			for _, mb := range mailboxes {
-				lm := l.WithGroup(mb.Id)
+			l.Info("loaded mailboxes for unseen-voicemail notifications", "count", len(mailboxes))
 
+			for _, mb := range mailboxes {
+				lm := l.With("mailbox", mb.Id)
+
+				lm.Info("triggering mailbox sync ...")
 				// trigger and wait for the mailbox to sync so we don't miss any mails
-				if err := mng.TriggerSync(ctx, mb.Id); err != nil {
+				triggerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
+				if err := mng.TriggerSync(triggerCtx, mb.Id); err != nil {
 					if ctx.Err() != nil {
+						cancel()
 						return
 					}
 
@@ -55,8 +58,10 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 
 					// still, continue and check if we need to send notifications.
 				}
+				cancel()
 
 				// find all unseen messages
+				lm.Info("fetching unseen voice-mails ...")
 				res, err := providers.MailboxDatabase.ListVoiceMails(ctx, mb.Id, &pbx3cxv1.VoiceMailFilter{
 					Unseen: wrapperspb.Bool(true),
 				})
@@ -67,9 +72,11 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 				}
 
 				if len(res) > 0 {
+					lm.Info("found unseen voicemails, checking notification settings", "count", len(res), "count-notification-settings", len(mb.NotificationSettings))
+
 					// iterate over all notification settings
 					for idx, nfs := range mb.NotificationSettings {
-						lnfs := lm.WithGroup(nfs.Name)
+						lnfs := lm.With("notification-setting", nfs.Name)
 
 						reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
 						if err != nil {
@@ -85,6 +92,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 							// Do not send notifications for time-of-day entries that
 							// occured before the worker even started
 							if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
+								lnfs.Info("skipping notification as sendTime is before start time or after now", "send-time", sendTimeToday.Format(time.RFC3339), "start-time", startTime.Format(time.RFC3339))
+
 								continue
 							}
 
@@ -115,7 +124,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 						}
 					}
 				} else {
-					slog.Info("no unseen voicemails")
+					lm.Info("no unseen voicemails")
 				}
 			}
 		}
