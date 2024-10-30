@@ -25,94 +25,98 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 	l := slog.Default().WithGroup("notification-worker")
 
 	go func() {
-		select {
-		case <-ctx.Done():
-			slog.Info("notification worker cancelled")
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("notification worker cancelled")
 
-			return
-		case <-ticker.C:
-		}
-
-		// fetch all voicemail boxes
-		mailboxes, err := providers.MailboxDatabase.ListMailboxes(ctx)
-		if err != nil {
-			l.ErrorContext(ctx, "failed to retrieve mailbox list", slog.Any("error", err.Error()))
-		}
-
-		for _, mb := range mailboxes {
-			lm := l.WithGroup(mb.Id)
-
-			// trigger and wait for the mailbox to sync so we don't miss any mails
-			if err := mng.TriggerSync(ctx, mb.Id); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-
-				lm.ErrorContext(ctx, "failed to trigger mailbox sync", slog.Any("error", err.Error()))
-
-				// still, continue and check if we need to send notifications.
+				return
+			case <-ticker.C:
 			}
 
-			// find all unseen messages
-			res, err := providers.MailboxDatabase.ListVoiceMails(ctx, mb.Id, &pbx3cxv1.VoiceMailFilter{
-				Unseen: wrapperspb.Bool(true),
-			})
+			l.Info("fetching unseen voicemails ...")
 
+			// fetch all voicemail boxes
+			mailboxes, err := providers.MailboxDatabase.ListMailboxes(ctx)
 			if err != nil {
-				lm.ErrorContext(ctx, "failed to load unseen voicemails", slog.Any("error", err.Error()))
-				continue
+				l.ErrorContext(ctx, "failed to retrieve mailbox list", slog.Any("error", err.Error()))
 			}
 
-			if len(res) > 0 {
-				// iterate over all notification settings
-				for idx, nfs := range mb.NotificationSettings {
-					lnfs := lm.WithGroup(nfs.Name)
+			for _, mb := range mailboxes {
+				lm := l.WithGroup(mb.Id)
 
-					reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
-					if err != nil {
-						lnfs.ErrorContext(ctx, "failed to create notification requests", slog.Any("error", err.Error()))
-						continue
+				// trigger and wait for the mailbox to sync so we don't miss any mails
+				if err := mng.TriggerSync(ctx, mb.Id); err != nil {
+					if ctx.Err() != nil {
+						return
 					}
 
-					now := time.Now().Local()
+					lm.ErrorContext(ctx, "failed to trigger mailbox sync", slog.Any("error", err.Error()))
 
-					for _, t := range nfs.SendTimes {
-						sendTimeToday := time.Date(now.Year(), now.Month(), now.Day(), int(t.Hour), int(t.Minute), int(t.Second), 0, time.Local)
+					// still, continue and check if we need to send notifications.
+				}
 
-						// Do not send notifications for time-of-day entries that
-						// occured before the worker even started
-						if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
+				// find all unseen messages
+				res, err := providers.MailboxDatabase.ListVoiceMails(ctx, mb.Id, &pbx3cxv1.VoiceMailFilter{
+					Unseen: wrapperspb.Bool(true),
+				})
+
+				if err != nil {
+					lm.ErrorContext(ctx, "failed to load unseen voicemails", slog.Any("error", err.Error()))
+					continue
+				}
+
+				if len(res) > 0 {
+					// iterate over all notification settings
+					for idx, nfs := range mb.NotificationSettings {
+						lnfs := lm.WithGroup(nfs.Name)
+
+						reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
+						if err != nil {
+							lnfs.ErrorContext(ctx, "failed to create notification requests", slog.Any("error", err.Error()))
 							continue
 						}
 
-						key := mb.Id + fmt.Sprintf("-%d-%d:%d:%d", idx, t.Hour, t.Minute, t.Second)
-						lastSent, ok := lastSentMap[key]
+						now := time.Now().Local()
 
-						if !ok || lastSent.Before(sendTimeToday) {
-							lnfs.InfoContext(ctx, "sending notification requests for time-of-day", slog.Any("key", key))
+						for _, t := range nfs.SendTimes {
+							sendTimeToday := time.Date(now.Year(), now.Month(), now.Day(), int(t.Hour), int(t.Minute), int(t.Second), 0, time.Local)
 
-							for _, r := range reqs {
-								res, err := providers.Notify.SendNotification(ctx, connect.NewRequest(r))
-								if err != nil {
-									lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", err.Error()))
-								} else {
-									for _, d := range res.Msg.Deliveries {
-										if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
-											lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
-										}
-									}
-								}
-
+							// Do not send notifications for time-of-day entries that
+							// occured before the worker even started
+							if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
+								continue
 							}
 
-							lastSentMap[key] = sendTimeToday
-						} else {
-							lnfs.Info("not sending notification", "last", lastSent, "next", sendTimeToday, "key", key)
+							key := mb.Id + fmt.Sprintf("-%d-%d:%d:%d", idx, t.Hour, t.Minute, t.Second)
+							lastSent, ok := lastSentMap[key]
+
+							if !ok || lastSent.Before(sendTimeToday) {
+								lnfs.InfoContext(ctx, "sending notification requests for time-of-day", slog.Any("key", key))
+
+								for _, r := range reqs {
+									res, err := providers.Notify.SendNotification(ctx, connect.NewRequest(r))
+									if err != nil {
+										lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", err.Error()))
+									} else {
+										for _, d := range res.Msg.Deliveries {
+											if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
+												lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
+											}
+										}
+									}
+
+								}
+
+								lastSentMap[key] = sendTimeToday
+							} else {
+								lnfs.Info("not sending notification", "last", lastSent, "next", sendTimeToday, "key", key)
+							}
 						}
 					}
+				} else {
+					slog.Info("no unseen voicemails")
 				}
-			} else {
-				slog.Info("no unseen voicemails")
 			}
 		}
 	}()
