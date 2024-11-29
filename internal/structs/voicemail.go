@@ -5,6 +5,7 @@ import (
 
 	customerv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/customer/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"github.com/tierklinik-dobersberg/apis/pkg/ql"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -23,6 +24,31 @@ type (
 		InboundNumber string             `bson:"inboundNumber,omitempty"`
 	}
 )
+
+var VoiceMailModel = ql.FieldList{
+	ql.FieldSpec{
+		Name:         "receiveTime",
+		TypeResolver: ql.TimeStartKeywordType(time.Local),
+		Aliases:      []string{"received"},
+	},
+	ql.FieldSpec{
+		Name:         "seenTime",
+		TypeResolver: ql.TimeStartKeywordType(time.Local),
+		Aliases:      []string{"seen"},
+	},
+	ql.FieldSpec{
+		Name: "caller",
+	},
+	ql.FieldSpec{
+		Name: "customerId",
+	},
+	ql.FieldSpec{
+		Name: "inboundNumber",
+	},
+	ql.FieldSpec{
+		Name: "subject",
+	},
+}
 
 func (vm VoiceMail) ToProto() *pbx3cxv1.VoiceMail {
 	pb := &pbx3cxv1.VoiceMail{

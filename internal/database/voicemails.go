@@ -13,7 +13,6 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
-	"github.com/tierklinik-dobersberg/apis/pkg/ql"
 	"github.com/tierklinik-dobersberg/apis/pkg/ql/bsonql"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
@@ -490,13 +489,8 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 }
 
 func (db *mailboxDatabase) SearchVoiceMails(ctx context.Context, mailboxId, query string) ([]*pbx3cxv1.VoiceMail, error) {
-	schema, err := ql.SchemaFromModel(structs.VoiceMail{}, ql.BSONTagNameResolver)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
-	}
-
 	parser := &bsonql.BSONQL{
-		Schema: schema,
+		Schema: structs.VoiceMailModel,
 	}
 
 	filter, err := parser.Parse(query)
