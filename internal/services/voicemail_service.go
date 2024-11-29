@@ -141,6 +141,47 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 		return nil, err
 	}
 
+	customers, err := svc.collectCustomers(ctx, res)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &pbx3cxv1.ListVoiceMailsResponse{
+		Voicemails: res,
+		Customers:  customers,
+	}
+
+	if v := req.Msg.GetView(); v != nil {
+		view.Apply(response, v)
+	}
+
+	return connect.NewResponse(response), nil
+}
+
+func (svc *VoiceMailService) SearchVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.SearchVoiceMailsRequest]) (*connect.Response[pbx3cxv1.SearchVoiceMailsResponse], error) {
+	res, err := svc.providers.MailboxDatabase.SearchVoiceMails(ctx, req.Msg.Mailbox, req.Msg.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	customers, err := svc.collectCustomers(ctx, res)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &pbx3cxv1.SearchVoiceMailsResponse{
+		Voicemails: res,
+		Customers:  customers,
+	}
+
+	if v := req.Msg.GetView(); v != nil {
+		view.Apply(response, v)
+	}
+
+	return connect.NewResponse(response), nil
+}
+
+func (svc *VoiceMailService) collectCustomers(ctx context.Context, res []*pbx3cxv1.VoiceMail) ([]*customerv1.Customer, error) {
 	ids := make(map[string]struct{})
 	for _, r := range res {
 		if c, ok := r.Caller.(*pbx3cxv1.VoiceMail_Customer); ok && c.Customer.Id != "" {
@@ -190,16 +231,7 @@ func (svc *VoiceMailService) ListVoiceMails(ctx context.Context, req *connect.Re
 		}
 	}
 
-	response := &pbx3cxv1.ListVoiceMailsResponse{
-		Voicemails: res,
-		Customers:  customers,
-	}
-
-	if v := req.Msg.GetView(); v != nil {
-		view.Apply(response, v)
-	}
-
-	return connect.NewResponse(response), nil
+	return customers, nil
 }
 
 func (svc *VoiceMailService) MarkVoiceMails(ctx context.Context, req *connect.Request[pbx3cxv1.MarkVoiceMailsRequest]) (*connect.Response[pbx3cxv1.MarkVoiceMailsResponse], error) {

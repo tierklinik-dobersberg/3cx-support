@@ -762,6 +762,8 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tierklinik-dobersberg/apis v0.11.1-0.20241028074458-c1ef04957a81 h1:K1+8lX4aU5pzbLySuysj+TSmIMnekmDf6iRFZjMNUCc=
 github.com/tierklinik-dobersberg/apis v0.11.1-0.20241028074458-c1ef04957a81/go.mod h1:gtOs0/fU+Cxp2BafdcWTWxJ8yQ/GP5GfHeS9dK0t6p0=
+github.com/tierklinik-dobersberg/apis v0.22.1-0.20241129075317-bdb19334f2b8 h1:lh14cmXTBoenhP70/ZdUoY7Aqiaf8HaRloYvX6ltugU=
+github.com/tierklinik-dobersberg/apis v0.22.1-0.20241129075317-bdb19334f2b8/go.mod h1:3SO47ivprjp2DMIO7N/7CkW38rBg8BLODDp5JDrIClE=
 github.com/tierklinik-dobersberg/logger v0.2.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=
 github.com/tierklinik-dobersberg/logger v0.4.0 h1:uD7lFkkTDeqOngjF7ybSUbuk6MFgwNSajwBAZJaEMVw=
 github.com/tierklinik-dobersberg/logger v0.4.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=

@@ -13,6 +13,8 @@ import (
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
+	"github.com/tierklinik-dobersberg/apis/pkg/ql"
+	"github.com/tierklinik-dobersberg/apis/pkg/ql/bsonql"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,6 +37,7 @@ type MailboxDatabase interface {
 	FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error)
 	CreateVoiceMail(ctx context.Context, voicemail *pbx3cxv1.VoiceMail) error
 	ListVoiceMails(ctx context.Context, mailbox string, query *pbx3cxv1.VoiceMailFilter) ([]*pbx3cxv1.VoiceMail, error)
+	SearchVoiceMails(ctx context.Context, mailbox string, query string) ([]*pbx3cxv1.VoiceMail, error)
 	MarkVoiceMails(ctx context.Context, seen bool, mailbox string, ids []string) error
 	GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error)
 
@@ -462,6 +465,51 @@ func (db *mailboxDatabase) ListVoiceMails(ctx context.Context, mailbox string, q
 			"$exists": true,
 		}
 	}
+
+	res, err := db.records.Find(ctx, filter, options.Find().SetSort(bson.D{
+		{
+			Key:   "receiveTime",
+			Value: -1,
+		},
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform find operation: %w", err)
+	}
+
+	var models []structs.VoiceMail
+	if err := res.All(ctx, &models); err != nil {
+		return nil, err
+	}
+
+	results := make([]*pbx3cxv1.VoiceMail, len(models))
+	for idx, m := range models {
+		results[idx] = m.ToProto()
+	}
+
+	return results, nil
+}
+
+func (db *mailboxDatabase) SearchVoiceMails(ctx context.Context, mailboxId, query string) ([]*pbx3cxv1.VoiceMail, error) {
+	schema, err := ql.SchemaFromModel(structs.VoiceMail{}, ql.BSONTagNameResolver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	parser := &bsonql.BSONQL{
+		Schema: schema,
+	}
+
+	filter, err := parser.Parse(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse query: %w", err)
+	}
+
+	oid, err := primitive.ObjectIDFromHex(mailboxId)
+	if err != nil {
+		return nil, err
+	}
+
+	filter["mailboxId"] = oid
 
 	res, err := db.records.Find(ctx, filter, options.Find().SetSort(bson.D{
 		{
