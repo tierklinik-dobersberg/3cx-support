@@ -28,19 +28,21 @@ type (
 var VoiceMailModel = ql.FieldList{
 	ql.FieldSpec{
 		Name:         "receiveTime",
-		TypeResolver: ql.TimeStartKeywordType(time.Local),
+		TypeResolver: ql.NullableType(ql.TimeStartKeywordType(time.Local)),
 		Aliases:      []string{"received"},
 	},
 	ql.FieldSpec{
 		Name:         "seenTime",
-		TypeResolver: ql.TimeStartKeywordType(time.Local),
+		TypeResolver: ql.NullableType(ql.TimeStartKeywordType(time.Local)),
 		Aliases:      []string{"seen"},
 	},
 	ql.FieldSpec{
-		Name: "caller",
+		Name:         "caller",
+		TypeResolver: ql.NullableType(nil),
 	},
 	ql.FieldSpec{
-		Name: "customerId",
+		Name:         "customerId",
+		TypeResolver: ql.NullableType(nil),
 	},
 	ql.FieldSpec{
 		Name: "inboundNumber",
