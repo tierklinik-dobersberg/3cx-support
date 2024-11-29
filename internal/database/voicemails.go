@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"time"
 
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
-	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
 	"github.com/tierklinik-dobersberg/apis/pkg/ql"
 	"github.com/tierklinik-dobersberg/apis/pkg/ql/bsonql"
@@ -372,7 +372,7 @@ func (db *mailboxDatabase) UpdateUnmatchedNumber(ctx context.Context, number str
 		return fmt.Errorf("failed to update customers: %w", err)
 	}
 
-	log.L(ctx).Infof("updated %d customer entries", res.ModifiedCount)
+	slog.Info("updated customer entries", "count", res.ModifiedCount)
 
 	return nil
 }
@@ -503,6 +503,9 @@ func (db *mailboxDatabase) SearchVoiceMails(ctx context.Context, mailboxId, quer
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)
 	}
+
+	blob, _ := json.MarshalIndent(filter, "", "    ")
+	log.Println(string(blob))
 
 	oid, err := primitive.ObjectIDFromHex(mailboxId)
 	if err != nil {
