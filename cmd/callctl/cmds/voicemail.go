@@ -322,6 +322,7 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		GetFetchVoiceMailCommand(root),
 		GetVoiceMailRecordCommand(root),
 		GetMarkVoiceMailCommand(root),
+		GetVoiceMailQueryCommand(root),
 	)
 
 	f := cmd.Flags()
@@ -333,6 +334,29 @@ func GetSearchVoiceMailRecordsCommand(root *cli.Root) *cobra.Command {
 		f.StringVar(&from, "from", "", "")
 		f.StringVar(&to, "to", "", "")
 		f.StringSliceVar(&paths, "field", nil, "")
+	}
+
+	return cmd
+}
+
+func GetVoiceMailQueryCommand(root *cli.Root) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  "query [mailbox] [query]",
+		Args: cobra.ExactArgs(2),
+		Run: func(_ *cobra.Command, args []string) {
+			cli := pbx3cxv1connect.NewVoiceMailServiceClient(root.HttpClient, root.Config().BaseURLS.CallService)
+
+			res, err := cli.SearchVoiceMails(root.Context(), connect.NewRequest(&pbx3cxv1.SearchVoiceMailsRequest{
+				Mailbox: args[0],
+				Query:   args[1],
+			}))
+
+			if err != nil {
+				logrus.Fatal(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
 	}
 
 	return cmd
