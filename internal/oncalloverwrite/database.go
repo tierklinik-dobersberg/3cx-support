@@ -182,31 +182,61 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 }
 
 func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time.Time, includeDeleted bool, inboundNumbers []string) ([]*structs.Overwrite, error) {
-	filter := bson.M{
-		"$or": bson.A{
-			bson.M{
-				"from": bson.M{
-					"$gte": filterFrom,
-					"$lt":  filterTo,
+	var timeFilter bson.M
+
+	switch {
+	case filterFrom.IsZero() && filterTo.IsZero(): // no time range
+
+	case !filterFrom.IsZero() && filterTo.IsZero(): // only from is set so include all entries that end after from
+		timeFilter = bson.M{
+			"to": bson.M{
+				"$gte": filterFrom,
+			},
+		}
+
+	case filterFrom.IsZero() && !filterTo.IsZero(): // only to is set so include all entries that end before to
+		timeFilter = bson.M{
+			"to": bson.M{
+				"$lte": filterTo,
+			},
+		}
+
+	default: // both are set
+		timeFilter = bson.M{
+			"$or": bson.A{
+				// all entries that span over the requested time range
+				bson.M{
+					"from": bson.M{
+						"$lte": filterFrom,
+					},
+					"to": bson.M{
+						"$gte": filterTo,
+					},
+				},
+
+				// all entries that start within the range
+				bson.M{
+					"from": bson.M{
+						"$gte": filterFrom,
+						"$lte": filterTo,
+					},
+				},
+
+				// all entries that end within the range
+				bson.M{
+					"to": bson.M{
+						"$gte": filterFrom,
+						"$lte": filterTo,
+					},
 				},
 			},
-			bson.M{
-				"to": bson.M{
-					"$gt": filterFrom,
-					"$lt": filterTo,
-				},
-			},
-			bson.M{
-				"from": bson.M{"$lte": filterFrom},
-				"to":   bson.M{"$gt": filterTo},
-			},
-		},
+		}
 	}
 
 	if len(inboundNumbers) > 0 {
-		filter = bson.M{
+		timeFilter = bson.M{
 			"$and": bson.A{
-				filter,
+				timeFilter,
 				bson.M{
 					"$or": getInboundNumbersFilter(inboundNumbers),
 				},
@@ -214,7 +244,7 @@ func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time
 		}
 	}
 	if !includeDeleted {
-		filter["deleted"] = bson.M{"$ne": true}
+		timeFilter["deleted"] = bson.M{"$ne": true}
 	}
 
 	opts := options.Find().SetSort(bson.D{
@@ -223,7 +253,7 @@ func (db *database) GetOverwrites(ctx context.Context, filterFrom, filterTo time
 		{Key: "_id", Value: 1},
 	})
 
-	res, err := db.overwrites.Find(ctx, filter, opts)
+	res, err := db.overwrites.Find(ctx, timeFilter, opts)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil

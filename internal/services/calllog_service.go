@@ -87,6 +87,13 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 
 	r := req.Msg
 
+	if !r.From.IsValid() {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("missing from field"))
+	}
+	if !r.To.IsValid() {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("missing to field"))
+	}
+
 	// prepare the overwrite model
 	model := structs.Overwrite{
 		From:          r.From.AsTime(),
@@ -94,6 +101,10 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 		CreatedBy:     remoteUser.ID,
 		CreatedAt:     time.Now(),
 		InboundNumber: req.Msg.InboundNumber,
+	}
+
+	if model.To.Before(model.From) || model.To.Equal(model.From) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid time range"))
 	}
 
 	switch v := r.TransferTarget.(type) {
@@ -230,7 +241,20 @@ func (svc *CallService) GetOverwrite(ctx context.Context, req *connect.Request[p
 		overwrites = []*structs.Overwrite{overwrite}
 
 	case *pbx3cxv1.GetOverwriteRequest_TimeRange:
-		overwrites, err = svc.OverwriteDB.GetOverwrites(ctx, v.TimeRange.From.AsTime(), v.TimeRange.To.AsTime(), false, req.Msg.InboundNumbers.GetNumbers())
+		var (
+			from time.Time
+			to   time.Time
+		)
+
+		if v.TimeRange.To.IsValid() {
+			to = v.TimeRange.To.AsTime()
+		}
+
+		if v.TimeRange.From.IsValid() {
+			from = v.TimeRange.From.AsTime()
+		}
+
+		overwrites, err = svc.OverwriteDB.GetOverwrites(ctx, from, to, false, req.Msg.InboundNumbers.GetNumbers())
 
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid or unsupported selector"))
