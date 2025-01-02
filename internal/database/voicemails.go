@@ -43,7 +43,7 @@ type MailboxDatabase interface {
 	GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error)
 
 	FindNotificationCandidates(ctx context.Context, mailbox string, unseen bool, notification string) ([]string, error)
-	MarkAsNotificationSent(ctx context.Context, recordIds []string, notification string) error
+	MarkAsNotificationSent(ctx context.Context, mailbox, notification string, recordIds []string) error
 
 	mailsync.Store
 }
@@ -134,7 +134,7 @@ type sentRecord struct {
 	SentAt       time.Time          `bson:"sentAt"`
 }
 
-func (db *mailboxDatabase) MarkAsNotificationSent(ctx context.Context, recordIds []string, notification string) error {
+func (db *mailboxDatabase) MarkAsNotificationSent(ctx context.Context, mailbox, notification string, recordIds []string) error {
 	docs := make([]any, 0, len(recordIds))
 	now := time.Now()
 
@@ -148,6 +148,7 @@ func (db *mailboxDatabase) MarkAsNotificationSent(ctx context.Context, recordIds
 		docs = append(docs, sentRecord{
 			Record:       id,
 			Notification: notification,
+			Mailbox:      mailbox,
 			SentAt:       now,
 		})
 	}

@@ -52,7 +52,7 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 					l.Info("found notification candiates", "count", len(candidates))
 
 					// mark them as sent now, this is migration code only and should be removed then
-					if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, candidates, nfs.Name); err != nil {
+					if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, mb.Id, nfs.Name, candidates); err != nil {
 						l.Error("failed to mark records as \"notification-sent\"", "error", err)
 					}
 				}
