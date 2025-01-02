@@ -19,6 +19,7 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/mongo"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -73,6 +74,47 @@ func (svc *CallService) GetOnCall(ctx context.Context, req *connect.Request[pbx3
 	if err != nil {
 		return svc.handleOnCallError(ctx, err)
 	}
+
+	///// Verification Code
+	go func() {
+		defer func() {
+			if x := recover(); x != nil {
+				slog.Error("cought panic", "panic", x)
+			}
+		}()
+
+		ib := req.Msg.InboundNumber
+		if ib == "" {
+			ib = svc.Config.DefaultOnCallInboundNumber
+		}
+
+		cache, ok := svc.caches[ib]
+		if ok {
+			cached := cache.Current()
+
+			if proto.Equal(cached, response) {
+				slog.Info("cached response is correct")
+			} else {
+				slog.Info("cache response is incorrect")
+				if _, err := svc.Providers.Notify.SendNotification(ctx, connect.NewRequest(&idmv1.SendNotificationRequest{
+					Message: &idmv1.SendNotificationRequest_Sms{
+						Sms: &idmv1.SMS{
+							Body: "cached response is incorrect",
+						},
+					},
+					TargetRoles: []string{
+						"itadmin",
+					},
+				})); err != nil {
+					slog.Error("failed to send cache-verification notification", "error", err)
+				}
+			}
+		} else {
+			slog.Warn("no on-call cache found for inbound number", "number", ib)
+		}
+	}()
+
+	///// Verification Code End
 
 	go svc.resetErrorNotification()
 
