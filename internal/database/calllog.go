@@ -38,16 +38,16 @@ type Database interface {
 	UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error
 }
 
-type database struct {
-	collection *mongo.Collection
-	country    string
+type callRecordDatabase struct {
+	callRecords *mongo.Collection
+	country     string
 }
 
 // New creates a new client.
 func New(ctx context.Context, dbName, country string, cli *mongo.Client) (Database, error) {
-	db := &database{
-		collection: cli.Database(dbName).Collection("callogs"),
-		country:    country,
+	db := &callRecordDatabase{
+		callRecords: cli.Database(dbName).Collection("callogs"),
+		country:     country,
 	}
 
 	if err := db.setup(ctx); err != nil {
@@ -57,8 +57,8 @@ func New(ctx context.Context, dbName, country string, cli *mongo.Client) (Databa
 	return db, nil
 }
 
-func (db *database) setup(ctx context.Context) error {
-	_, err := db.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+func (db *callRecordDatabase) setup(ctx context.Context) error {
+	_, err := db.callRecords.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
 			Keys: bson.D{
 				{Key: "datestr", Value: 1},
@@ -92,7 +92,7 @@ func (db *database) setup(ctx context.Context) error {
 	return nil
 }
 
-func (db *database) Search(ctx context.Context, search *SearchQuery) ([]structs.CallLog, error) {
+func (db *callRecordDatabase) Search(ctx context.Context, search *SearchQuery) ([]structs.CallLog, error) {
 	resCh, errCh := db.StreamSearch(ctx, search)
 
 	var (
@@ -121,7 +121,7 @@ L:
 	return results, errors.ErrorOrNil()
 }
 
-func (db *database) CreateUnidentified(ctx context.Context, record structs.CallLog) error {
+func (db *callRecordDatabase) CreateUnidentified(ctx context.Context, record structs.CallLog) error {
 	if record.ID.IsZero() {
 		record.ID = primitive.NewObjectID()
 	}
@@ -130,7 +130,7 @@ func (db *database) CreateUnidentified(ctx context.Context, record structs.CallL
 		return err
 	}
 
-	_, err := db.collection.InsertOne(ctx, record)
+	_, err := db.callRecords.InsertOne(ctx, record)
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
@@ -138,8 +138,8 @@ func (db *database) CreateUnidentified(ctx context.Context, record structs.CallL
 	return nil
 }
 
-func (db *database) UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error {
-	res, err := db.collection.UpdateMany(ctx, bson.M{
+func (db *callRecordDatabase) UpdateUnmatchedNumber(ctx context.Context, number string, customerId string) error {
+	res, err := db.callRecords.UpdateMany(ctx, bson.M{
 		"caller": number,
 		"customerSource": bson.M{
 			"$exists": false,
@@ -163,8 +163,8 @@ func (db *database) UpdateUnmatchedNumber(ctx context.Context, number string, cu
 	return nil
 }
 
-func (db *database) FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error) {
-	res, err := db.collection.Distinct(ctx, "caller", bson.M{
+func (db *callRecordDatabase) FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]string, error) {
+	res, err := db.callRecords.Distinct(ctx, "caller", bson.M{
 		"customerSource": bson.M{
 			"$exists": false,
 		},
@@ -188,7 +188,7 @@ func (db *database) FindDistinctNumbersWithoutCustomers(ctx context.Context) ([]
 	return result, nil
 }
 
-func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallLog) error {
+func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record structs.CallLog) error {
 	if record.ID.IsZero() {
 		record.ID = primitive.NewObjectID()
 	}
@@ -207,7 +207,7 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 		"caller":  record.Caller,
 	}
 	log.Infof("searching for %+v", filter)
-	cursor, err := db.collection.Find(ctx, filter, opts)
+	cursor, err := db.callRecords.Find(ctx, filter, opts)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve documents: %w", err)
 	}
@@ -250,14 +250,14 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 			record.CustomerID = existing.CustomerID
 		}
 
-		result := db.collection.FindOneAndReplace(ctx, bson.M{"_id": record.ID}, record)
+		result := db.callRecords.FindOneAndReplace(ctx, bson.M{"_id": record.ID}, record)
 		if result.Err() != nil {
 			return fmt.Errorf("failed to find and replace document %s: %w", record.ID, result.Err())
 		}
 
 		log.Infof("replaced unidentified calllog for %s with customer-record for %s:%s: %v", record.Caller, record.CustomerSource, record.CustomerID, record)
 	} else {
-		_, err := db.collection.InsertOne(ctx, record)
+		_, err := db.callRecords.InsertOne(ctx, record)
 		if err != nil {
 			return fmt.Errorf("failed to insert document: %w", err)
 		}
@@ -268,14 +268,14 @@ func (db *database) RecordCustomerCall(ctx context.Context, record structs.CallL
 	return nil
 }
 
-func (db *database) Search2(ctx context.Context, opts ...QueryOption) ([]structs.CallLog, error) {
+func (db *callRecordDatabase) Search2(ctx context.Context, opts ...QueryOption) ([]structs.CallLog, error) {
 	var q query
 
 	for _, opt := range opts {
 		opt(&q)
 	}
 
-	res, err := db.collection.Find(ctx, q.build())
+	res, err := db.callRecords.Find(ctx, q.build())
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (db *database) Search2(ctx context.Context, opts ...QueryOption) ([]structs
 	return results, nil
 }
 
-func (db *database) StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error) {
+func (db *callRecordDatabase) StreamSearch(ctx context.Context, query *SearchQuery) (<-chan structs.CallLog, <-chan error) {
 
 	results := make(chan structs.CallLog, 1)
 	errs := make(chan error, 1)
@@ -297,7 +297,7 @@ func (db *database) StreamSearch(ctx context.Context, query *SearchQuery) (<-cha
 	log.L(ctx).Infof("Searching callogs for %+v", filter)
 
 	opts := options.Find().SetSort(bson.M{"date": -1})
-	cursor, err := db.collection.Find(ctx, filter, opts)
+	cursor, err := db.callRecords.Find(ctx, filter, opts)
 	if err != nil {
 		errs <- fmt.Errorf("failed to retrieve documents: %w", err)
 
@@ -322,7 +322,7 @@ func (db *database) StreamSearch(ctx context.Context, query *SearchQuery) (<-cha
 	return results, errs
 }
 
-func (db *database) perpareRecord(ctx context.Context, record *structs.CallLog) error {
+func (db *callRecordDatabase) perpareRecord(ctx context.Context, record *structs.CallLog) error {
 	var formattedNumber string
 	if record.Caller != "Anonymous" {
 		parsed, err := phonenumbers.Parse(record.Caller, db.country)
