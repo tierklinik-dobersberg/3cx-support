@@ -14,65 +14,69 @@ import (
 )
 
 func StartFindCustomerWorker(ctx context.Context, providers *config.Providers) {
-	ticker := time.NewTicker(time.Minute * 10)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+		ticker := time.NewTicker(time.Minute * 10)
+		defer ticker.Stop()
 
-		func() {
-			defer cancel()
-			res, err := providers.CallLogDB.FindDistinctNumbersWithoutCustomers(ctx)
-			if err != nil {
-				log.L(ctx).Errorf("failed to find distinct, unidentified numbers: %s", err)
-				return
-			}
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 
-			res2, err := providers.MailboxDatabase.FindDistinctNumbersWithoutCustomers(ctx)
-			if err != nil {
-				log.L(ctx).Errorf("failed to find distinct, unidentified numbers in voicemails: %s", err)
-			}
-
-			res = append(res, res2...)
-			sort.Stable(sort.StringSlice(res))
-			slices.Compact(res)
-
-			log.L(ctx).Infof("found %d distinct numbers that are not associated with a customer record", len(res))
-
-			queries := make([]*customerv1.CustomerQuery, len(res))
-
-			for idx, r := range res {
-				queries[idx] = &customerv1.CustomerQuery{
-					Query: &customerv1.CustomerQuery_PhoneNumber{
-						PhoneNumber: r,
-					},
+			func() {
+				defer cancel()
+				res, err := providers.CallLogDB.FindDistinctNumbersWithoutCustomers(ctx)
+				if err != nil {
+					log.L(ctx).Errorf("failed to find distinct, unidentified numbers: %s", err)
+					return
 				}
-			}
 
-			queryResult, err := providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
-				Queries: queries,
-			}))
-			if err != nil {
-				log.L(ctx).Errorf("failed to search for customers: %s", err)
-			} else {
-				log.L(ctx).Infof("found %d customers for unmatched numbers", len(queryResult.Msg.Results))
+				res2, err := providers.MailboxDatabase.FindDistinctNumbersWithoutCustomers(ctx)
+				if err != nil {
+					log.L(ctx).Errorf("failed to find distinct, unidentified numbers in voicemails: %s", err)
+				}
 
-				for _, c := range queryResult.Msg.Results {
-					for _, number := range c.Customer.PhoneNumbers {
-						if err := providers.CallLogDB.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
-							log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
-						}
+				res = append(res, res2...)
+				sort.Stable(sort.StringSlice(res))
+				slices.Compact(res)
 
-						if err := providers.MailboxDatabase.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
-							log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+				log.L(ctx).Infof("found %d distinct numbers that are not associated with a customer record", len(res))
+
+				queries := make([]*customerv1.CustomerQuery, len(res))
+
+				for idx, r := range res {
+					queries[idx] = &customerv1.CustomerQuery{
+						Query: &customerv1.CustomerQuery_PhoneNumber{
+							PhoneNumber: r,
+						},
+					}
+				}
+
+				queryResult, err := providers.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
+					Queries: queries,
+				}))
+				if err != nil {
+					log.L(ctx).Errorf("failed to search for customers: %s", err)
+				} else {
+					log.L(ctx).Infof("found %d customers for unmatched numbers", len(queryResult.Msg.Results))
+
+					for _, c := range queryResult.Msg.Results {
+						for _, number := range c.Customer.PhoneNumbers {
+							if err := providers.CallLogDB.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
+								log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+							}
+
+							if err := providers.MailboxDatabase.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
+								log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+							}
 						}
 					}
 				}
-			}
-		}()
+			}()
 
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
+			select {
+			case <-ticker.C:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
