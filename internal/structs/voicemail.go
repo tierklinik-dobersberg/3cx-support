@@ -12,16 +12,27 @@ import (
 
 type (
 	VoiceMail struct {
-		ID            primitive.ObjectID `bson:"_id"`
-		Mailbox       primitive.ObjectID `bson:"mailboxId"`
-		ReceiveTime   time.Time          `bson:"receiveTime"`
-		Subject       string             `bson:"subject"`
-		Message       string             `bson:"message,omitempty"`
-		SeenTime      time.Time          `bson:"seenTime,omitempty"`
-		Caller        string             `bson:"caller,omitempty"`
-		CustomerId    string             `bson:"customerId,omitempty"`
-		FileName      string             `bson:"fileName,omitempty"`
-		InboundNumber string             `bson:"inboundNumber,omitempty"`
+		// ID holds the unique, MongoDB generated document ID.
+		ID primitive.ObjectID `bson:"_id"`
+		// Mailbox holds the MongoDB document ID of the mailbox this voicemail record belongs to.
+		Mailbox primitive.ObjectID `bson:"mailboxId"`
+		// ReceiveTime is the time the voicemail has been fetched from the mailbox.
+		ReceiveTime time.Time `bson:"receiveTime"`
+		// Subject holds the subject of the e-mail.
+		Subject string `bson:"subject"`
+		// Message is the email message body (text/plain).
+		Message string `bson:"message,omitempty"`
+		// SeenTime holds the time at which the voicemail has first been seen by a user.
+		SeenTime time.Time `bson:"seenTime,omitempty"`
+		// Caller holds the phone number of the caller that created the voicemail.
+		Caller string `bson:"caller,omitempty"`
+		// CustomerId holds the ID of the customer in case the caller number have been
+		// matched against a customer record.
+		CustomerId string `bson:"customerId,omitempty"`
+		// FileName holds the path of the voicemail recording on dist.
+		FileName string `bson:"fileName,omitempty"`
+		// InboundNumber holds the inbound number that has been called.
+		InboundNumber string `bson:"inboundNumber,omitempty"`
 	}
 )
 

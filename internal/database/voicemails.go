@@ -12,6 +12,7 @@ import (
 
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"github.com/tierklinik-dobersberg/apis/pkg/data"
 	"github.com/tierklinik-dobersberg/apis/pkg/mailsync"
 	"github.com/tierklinik-dobersberg/apis/pkg/ql/bsonql"
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,6 +22,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type MailboxDatabase interface {
@@ -40,20 +42,29 @@ type MailboxDatabase interface {
 	MarkVoiceMails(ctx context.Context, seen bool, mailbox string, ids []string) error
 	GetVoicemail(ctx context.Context, id string) (*pbx3cxv1.VoiceMail, error)
 
+	FindNotificationCandidates(ctx context.Context, mailbox string, unseen bool, notification string) ([]string, error)
+	MarkAsNotificationSent(ctx context.Context, recordIds []string, notification string) error
+
 	mailsync.Store
 }
 
 type mailboxDatabase struct {
-	mailboxes *mongo.Collection
-	records   *mongo.Collection
-	syncState *mongo.Collection
+	db *mongo.Database
+
+	mailboxes         *mongo.Collection
+	records           *mongo.Collection
+	notificationsSent *mongo.Collection
+	syncState         *mongo.Collection
 }
 
 func NewMailboxDatabase(ctx context.Context, cli *mongo.Database) (MailboxDatabase, error) {
 	db := &mailboxDatabase{
-		mailboxes: cli.Collection("mailboxes"),
-		records:   cli.Collection("voicemail-records"),
-		syncState: cli.Collection("sync-states"),
+		db: cli,
+
+		mailboxes:         cli.Collection("mailboxes"),
+		records:           cli.Collection("voicemail-records"),
+		syncState:         cli.Collection("sync-states"),
+		notificationsSent: cli.Collection("notification-sent"),
 	}
 
 	if err := db.setup(ctx); err != nil {
@@ -73,6 +84,17 @@ func (db *mailboxDatabase) setup(ctx context.Context) error {
 		},
 	}); err != nil {
 		return fmt.Errorf("failed to create indexes on mailbox collection: %w", err)
+	}
+
+	if _, err := db.notificationsSent.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "record", Value: 1},
+			{Key: "notification", Value: 1},
+			{Key: "mailbox", Value: 1},
+		},
+		Options: options.Index().SetUnique(true).SetSparse(false),
+	}); err != nil {
+		return fmt.Errorf("failed to create indexes on notifications-sent collection: %w", err)
 	}
 
 	if _, err := db.records.Indexes().CreateMany(ctx, []mongo.IndexModel{
@@ -103,6 +125,100 @@ func (db *mailboxDatabase) setup(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type sentRecord struct {
+	Record       primitive.ObjectID `bson:"record"`
+	Notification string             `bson:"notification"`
+	Mailbox      string             `bson:"mailbox"`
+	SentAt       time.Time          `bson:"sentAt"`
+}
+
+func (db *mailboxDatabase) MarkAsNotificationSent(ctx context.Context, recordIds []string, notification string) error {
+	docs := make([]any, 0, len(recordIds))
+	now := time.Now()
+
+	for _, recordId := range recordIds {
+		id, err := primitive.ObjectIDFromHex(recordId)
+		if err != nil {
+			slog.Error("failed to parse record id, skipping record", "error", err, "record-id", recordId)
+			continue
+		}
+
+		docs = append(docs, sentRecord{
+			Record:       id,
+			Notification: notification,
+			SentAt:       now,
+		})
+	}
+
+	if _, err := db.notificationsSent.InsertMany(ctx, docs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *mailboxDatabase) FindNotificationCandidates(ctx context.Context, mailbox string, unseen bool, notification string) ([]string, error) {
+	session, err := db.db.Client().StartSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start session: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	result, err := session.WithTransaction(ctx, func(ctx mongo.SessionContext) (interface{}, error) {
+		// first, find all unseen records for the given mailbox
+		voicemails, err := db.ListVoiceMails(ctx, mailbox, &pbx3cxv1.VoiceMailFilter{
+			Unseen: wrapperspb.Bool(unseen),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve unseen voicemails for mailbox %q: %w", mailbox, err)
+		}
+
+		recordsOid := make([]primitive.ObjectID, 0, len(voicemails))
+
+		for _, m := range voicemails {
+			id, _ := primitive.ObjectIDFromHex(m.Id)
+			recordsOid = append(recordsOid, id)
+		}
+
+		// for each unseen voicemail, query if it is part of the notification-sent collection:
+		sentFor, err := db.notificationsSent.Find(ctx, bson.M{
+			"record": bson.M{
+				"$in": recordsOid,
+			},
+			"notification": notification,
+			"mailbox":      mailbox,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query notifications-sent collection: %w", err)
+		}
+
+		var sentRecords []sentRecord
+		if err := sentFor.All(ctx, &sentRecords); err != nil {
+			return nil, fmt.Errorf("failed to decode sent-records: %w", err)
+		}
+
+		// finnally, filter out any records that have not yet been sent
+		lm := data.IndexSlice(sentRecords, func(r sentRecord) string { return r.Record.Hex() })
+
+		result := make([]string, 0, len(voicemails))
+		for _, m := range voicemails {
+			if _, ok := lm[m.Id]; ok {
+				continue
+			}
+
+			result = append(result, m.Id)
+		}
+
+		return result, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result.([]string), nil
 }
 
 func (db *mailboxDatabase) LoadState(ctx context.Context, id string) (*mailsync.State, error) {

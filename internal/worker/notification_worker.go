@@ -40,6 +40,25 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 				l.ErrorContext(ctx, "failed to retrieve mailbox list", slog.Any("error", err.Error()))
 			}
 
+			//// MIGRATION CODE
+			for _, mb := range mailboxes {
+				for _, nfs := range mb.NotificationSettings {
+					candidates, err := providers.MailboxDatabase.FindNotificationCandidates(ctx, mb.Id, false, nfs.Name)
+					if err != nil {
+						l.Error("failed to find notification candiates", "error", err, "mailbox", mb.Id, "notification-setting", nfs.Name)
+						continue
+					}
+
+					l.Info("found notification candiates", "count", len(candidates))
+
+					// mark them as sent now, this is migration code only and should be removed then
+					if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, candidates, nfs.Name); err != nil {
+						l.Error("failed to mark records as \"notification-sent\"", "error", err)
+					}
+				}
+			}
+			//// END OF MIGRATION CODE
+
 			l.Info("loaded mailboxes for unseen-voicemail notifications", "count", len(mailboxes))
 
 			for _, mb := range mailboxes {
@@ -114,7 +133,6 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 											}
 										}
 									}
-
 								}
 
 								lastSentMap[key] = sendTimeToday
