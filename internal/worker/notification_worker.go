@@ -13,7 +13,6 @@ import (
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
 	idmv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/idm/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, providers *config.Providers) {
@@ -40,25 +39,6 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 				l.ErrorContext(ctx, "failed to retrieve mailbox list", slog.Any("error", err.Error()))
 			}
 
-			//// MIGRATION CODE
-			for _, mb := range mailboxes {
-				for _, nfs := range mb.NotificationSettings {
-					candidates, err := providers.MailboxDatabase.FindNotificationCandidates(ctx, mb.Id, false, nfs.Name)
-					if err != nil {
-						l.Error("failed to find notification candiates", "error", err, "mailbox", mb.Id, "notification-setting", nfs.Name)
-						continue
-					}
-
-					l.Info("found notification candiates", "count", len(candidates))
-
-					// mark them as sent now, this is migration code only and should be removed then
-					if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, mb.Id, nfs.Name, candidates); err != nil {
-						l.Error("failed to mark records as \"notification-sent\"", "error", err)
-					}
-				}
-			}
-			//// END OF MIGRATION CODE
-
 			l.Info("loaded mailboxes for unseen-voicemail notifications", "count", len(mailboxes))
 
 			for _, mb := range mailboxes {
@@ -79,70 +59,78 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 				}
 				cancel()
 
-				// find all unseen messages
-				lm.Info("fetching unseen voice-mails ...")
-				res, err := providers.MailboxDatabase.ListVoiceMails(ctx, mb.Id, &pbx3cxv1.VoiceMailFilter{
-					Unseen: wrapperspb.Bool(true),
-				})
+				// iterate over all notification settings
+				for idx, nfs := range mb.NotificationSettings {
+					lnfs := lm.With("notification-setting", nfs.Name)
 
-				if err != nil {
-					lm.ErrorContext(ctx, "failed to load unseen voicemails", slog.Any("error", err.Error()))
-					continue
-				}
+					// find notification candidates
+					candidates, err := providers.MailboxDatabase.FindNotificationCandidates(ctx, mb.Id, true, nfs.Name)
+					if err != nil {
+						lnfs.Error("failed to find notification candiates", "error", err)
+						continue
+					}
 
-				if len(res) > 0 {
-					lm.Info("found unseen voicemails, checking notification settings", "count", len(res), "count-notification-settings", len(mb.NotificationSettings))
+					if len(candidates) == 0 {
+						lnfs.Info("no notification candidates found")
+						continue
+					}
 
-					// iterate over all notification settings
-					for idx, nfs := range mb.NotificationSettings {
-						lnfs := lm.With("notification-setting", nfs.Name)
+					lnfs.Info("found candiates for notifications", "count", len(candidates))
 
-						reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(res), lnfs)
-						if err != nil {
-							lnfs.ErrorContext(ctx, "failed to create notification requests", slog.Any("error", err.Error()))
+					reqs, err := newNotificationRequests(providers.Config.NotificationSenderId, mb, nfs, len(candidates), lnfs)
+					if err != nil {
+						lnfs.ErrorContext(ctx, "failed to create notification requests", slog.Any("error", err.Error()))
+						continue
+					}
+
+					now := time.Now().Local()
+
+					for _, t := range nfs.SendTimes {
+						sendTimeToday := time.Date(now.Year(), now.Month(), now.Day(), int(t.Hour), int(t.Minute), int(t.Second), 0, time.Local)
+
+						// Do not send notifications for time-of-day entries that
+						// occured before the worker even started
+						if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
+							lnfs.Info("skipping notification as sendTime is before start time or after now", "send-time", sendTimeToday.Format(time.RFC3339), "start-time", startTime.Format(time.RFC3339))
+
 							continue
 						}
 
-						now := time.Now().Local()
+						key := mb.Id + fmt.Sprintf("-%d-%d:%d:%d", idx, t.Hour, t.Minute, t.Second)
+						lastSent, ok := lastSentMap[key]
 
-						for _, t := range nfs.SendTimes {
-							sendTimeToday := time.Date(now.Year(), now.Month(), now.Day(), int(t.Hour), int(t.Minute), int(t.Second), 0, time.Local)
+						success := true
 
-							// Do not send notifications for time-of-day entries that
-							// occured before the worker even started
-							if sendTimeToday.Before(startTime) || sendTimeToday.After(now) {
-								lnfs.Info("skipping notification as sendTime is before start time or after now", "send-time", sendTimeToday.Format(time.RFC3339), "start-time", startTime.Format(time.RFC3339))
+						if !ok || lastSent.Before(sendTimeToday) {
+							lnfs.InfoContext(ctx, "sending notification requests for time-of-day", slog.Any("key", key))
 
-								continue
-							}
-
-							key := mb.Id + fmt.Sprintf("-%d-%d:%d:%d", idx, t.Hour, t.Minute, t.Second)
-							lastSent, ok := lastSentMap[key]
-
-							if !ok || lastSent.Before(sendTimeToday) {
-								lnfs.InfoContext(ctx, "sending notification requests for time-of-day", slog.Any("key", key))
-
-								for _, r := range reqs {
-									res, err := providers.Notify.SendNotification(ctx, connect.NewRequest(r))
-									if err != nil {
-										lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", err.Error()))
-									} else {
-										for _, d := range res.Msg.Deliveries {
-											if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
-												lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
-											}
+							for _, r := range reqs {
+								res, err := providers.Notify.SendNotification(ctx, connect.NewRequest(r))
+								if err != nil {
+									lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", err.Error()))
+									success = false
+								} else {
+									for _, d := range res.Msg.Deliveries {
+										if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
+											lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
 										}
+
+										success = false
 									}
 								}
-
-								lastSentMap[key] = sendTimeToday
-							} else {
-								lnfs.Info("not sending notification", "last", lastSent, "next", sendTimeToday, "key", key)
 							}
+
+							if success {
+								if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, mb.Id, nfs.Name, candidates); err != nil {
+									lnfs.Error("failed to mark voicemail notifications as sent", "error", err)
+								}
+							}
+
+							lastSentMap[key] = sendTimeToday
+						} else {
+							lnfs.Info("not sending notification", "last", lastSent, "next", sendTimeToday, "key", key)
 						}
 					}
-				} else {
-					lm.Info("no unseen voicemails")
 				}
 			}
 		}
