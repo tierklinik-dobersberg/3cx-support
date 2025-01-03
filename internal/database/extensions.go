@@ -11,6 +11,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type ExtensionDatabase interface {
+	SavePhoneExtension(context.Context, *pbx3cxv1.PhoneExtension) error
+	DeletePhoneExtension(context.Context, string) error
+	ListPhoneExtensions(context.Context) ([]*pbx3cxv1.PhoneExtension, error)
+}
+
 type extensionDatabase struct {
 	col *mongo.Collection
 }
@@ -46,7 +52,7 @@ func (extDb *extensionDatabase) setup(ctx context.Context) error {
 	return nil
 }
 
-func (extDb *extensionDatabase) SaveExtension(ctx context.Context, ext *pbx3cxv1.PhoneExtension) error {
+func (extDb *extensionDatabase) SavePhoneExtension(ctx context.Context, ext *pbx3cxv1.PhoneExtension) error {
 	model := extensionModel{
 		Extension:            ext.Extension,
 		Name:                 ext.DisplayName,
@@ -64,7 +70,7 @@ func (extDb *extensionDatabase) SaveExtension(ctx context.Context, ext *pbx3cxv1
 	return nil
 }
 
-func (extDb *extensionDatabase) DeleteExtension(ctx context.Context, ext string) error {
+func (extDb *extensionDatabase) DeletePhoneExtension(ctx context.Context, ext string) error {
 	res, err := extDb.col.DeleteOne(ctx, bson.M{"extension": ext})
 	if err != nil {
 		return fmt.Errorf("failed to perform delete operation: %w", err)
@@ -100,3 +106,5 @@ func (extDb *extensionDatabase) ListPhoneExtensions(ctx context.Context) ([]*pbx
 
 	return protoResult, nil
 }
+
+var _ ExtensionDatabase = (*extensionDatabase)(nil)

@@ -46,6 +46,7 @@ type Providers struct {
 	CallLogDB       database.Database
 	OverwriteDB     oncalloverwrite.Database
 	MailboxDatabase database.MailboxDatabase
+	Extensions      database.ExtensionDatabase
 
 	Config Config
 }
@@ -78,6 +79,11 @@ func NewProviders(ctx context.Context, cfg Config) (*Providers, error) {
 		return nil, fmt.Errorf("failed to prepare mailbox db: %w", err)
 	}
 
+	extDB, err := database.NewExtensionDatabase(ctx, mongoCli.Database(cfg.Database))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create phone-extension database: %w", err)
+	}
+
 	p := &Providers{
 		Roster:          rosterv1connect.NewRosterServiceClient(httpClient, cfg.RosterdURL),
 		Users:           idmv1connect.NewUserServiceClient(httpClient, cfg.IdmURL),
@@ -89,6 +95,7 @@ func NewProviders(ctx context.Context, cfg Config) (*Providers, error) {
 		CallLogDB:       callogDB,
 		OverwriteDB:     overwriteDB,
 		MailboxDatabase: mailboxDB,
+		Extensions:      extDB,
 	}
 
 	return p, nil
