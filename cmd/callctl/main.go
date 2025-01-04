@@ -14,6 +14,7 @@ func main() {
 		cmds.GetOnDutyCommand(root),
 		cmds.GetInboundNumbersCommand(root),
 		cmds.GetVoiceMailCommand(root),
+		cmds.GetPhoneExtensionsCommand(root),
 	)
 
 	if err := root.Execute(); err != nil {
