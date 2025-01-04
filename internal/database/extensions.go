@@ -42,7 +42,7 @@ func NewExtensionDatabase(ctx context.Context, db *mongo.Database) (*extensionDa
 func (extDb *extensionDatabase) setup(ctx context.Context) error {
 	if _, err := extDb.col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "extension"},
+			{Key: "extension", Value: 1},
 		},
 		Options: options.Index().SetUnique(true),
 	}); err != nil {
