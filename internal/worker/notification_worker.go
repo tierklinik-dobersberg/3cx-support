@@ -113,9 +113,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 									for _, d := range res.Msg.Deliveries {
 										if d.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
 											lnfs.ErrorContext(ctx, "failed to send notification", slog.Any("key", key), slog.Any("error", d.Error), slog.Any("errorKind", d.ErrorKind.String()))
+											success = false
 										}
-
-										success = false
 									}
 								}
 							}
@@ -124,6 +123,8 @@ func StartNotificationWorker(ctx context.Context, mng *voicemail.Manager, provid
 								if err := providers.MailboxDatabase.MarkAsNotificationSent(ctx, mb.Id, nfs.Name, candidates); err != nil {
 									lnfs.Error("failed to mark voicemail notifications as sent", "error", err)
 								}
+							} else {
+								lnfs.Error("not marking voicemail notification as sent, an error occured")
 							}
 
 							lastSentMap[key] = sendTimeToday

@@ -343,6 +343,9 @@ func (svc *CallService) GetLogsForDate(ctx context.Context, req *connect.Request
 		res.Results[idx] = log.ToProto()
 	}
 
+	// update the call entry status
+	svc.updateCallLogStatus(ctx, res.Results)
+
 	return connect.NewResponse(res), nil
 }
 
@@ -362,6 +365,8 @@ func (svc *CallService) GetLogsForCustomer(ctx context.Context, req *connect.Req
 	for idx, log := range logs {
 		res.Results[idx] = log.ToProto()
 	}
+
+	svc.updateCallLogStatus(ctx, res.Results)
 
 	return connect.NewResponse(res), nil
 }
@@ -494,4 +499,34 @@ func (svc *CallService) resetErrorNotification() {
 	defer svc.notifyErrorLock.Unlock()
 
 	svc.notifyOnce = sync.Once{}
+}
+
+func (svc *CallService) updateCallLogStatus(ctx context.Context, logs []*pbx3cxv1.CallEntry) {
+	if len(logs) == 0 {
+		return
+	}
+
+	// fetch all known phone extensions
+	extensions, err := svc.Extensions.ListPhoneExtensions(ctx)
+	if err != nil {
+		slog.Error("failed to load phone-extensions", "error", err)
+		return
+	}
+
+	// find any "internal_queue" extensions and create a lookup map by extension
+	internalQueues := make(map[string]*pbx3cxv1.PhoneExtension, len(extensions))
+	for _, e := range extensions {
+		if e.InternalQueue {
+			internalQueues[e.Extension] = e
+		}
+	}
+
+	// range over the call logs and mark any call that "ended" in an internal_queue
+	// extension as lost
+	for _, l := range logs {
+		if _, ok := internalQueues[l.AcceptedAgent]; ok {
+			l.Status = pbx3cxv1.CallStatus_CALL_STATUS_MISSED
+			l.CallType = "MISSED"
+		}
+	}
 }

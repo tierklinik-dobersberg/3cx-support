@@ -12,6 +12,7 @@ import (
 )
 
 type ExtensionDatabase interface {
+	UpdatePhoneExtension(ctx context.Context, extension string, ext *pbx3cxv1.PhoneExtension) error
 	SavePhoneExtension(context.Context, *pbx3cxv1.PhoneExtension) error
 	DeletePhoneExtension(context.Context, string) error
 	ListPhoneExtensions(context.Context) ([]*pbx3cxv1.PhoneExtension, error)
@@ -25,6 +26,7 @@ type extensionModel struct {
 	Extension            string `bson:"extension"`
 	Name                 string `bson:"displayName"`
 	EligibleForOverwrite bool   `bson:"eligibleForOverwrite"`
+	InternalQueue        bool   `bson:"internalQueue"`
 }
 
 func NewExtensionDatabase(ctx context.Context, db *mongo.Database) (*extensionDatabase, error) {
@@ -52,11 +54,36 @@ func (extDb *extensionDatabase) setup(ctx context.Context) error {
 	return nil
 }
 
+func (extDb *extensionDatabase) UpdatePhoneExtension(ctx context.Context, extension string, model *pbx3cxv1.PhoneExtension) error {
+	doc := extensionModel{
+		Extension:            model.Extension,
+		Name:                 model.DisplayName,
+		EligibleForOverwrite: model.EligibleForOverwrite,
+		InternalQueue:        model.InternalQueue,
+	}
+
+	res, err := extDb.col.ReplaceOne(ctx, bson.M{"extension": extension}, doc)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return connect.NewError(connect.CodeAlreadyExists, err)
+		}
+
+		return fmt.Errorf("failed to perform insert operation")
+	}
+
+	if res.MatchedCount == 0 {
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("phone-extension not found"))
+	}
+
+	return nil
+}
+
 func (extDb *extensionDatabase) SavePhoneExtension(ctx context.Context, ext *pbx3cxv1.PhoneExtension) error {
 	model := extensionModel{
 		Extension:            ext.Extension,
 		Name:                 ext.DisplayName,
 		EligibleForOverwrite: ext.EligibleForOverwrite,
+		InternalQueue:        ext.InternalQueue,
 	}
 
 	if _, err := extDb.col.InsertOne(ctx, model); err != nil {
@@ -101,6 +128,7 @@ func (extDb *extensionDatabase) ListPhoneExtensions(ctx context.Context) ([]*pbx
 			Extension:            r.Extension,
 			DisplayName:          r.Name,
 			EligibleForOverwrite: r.EligibleForOverwrite,
+			InternalQueue:        r.InternalQueue,
 		}
 	}
 

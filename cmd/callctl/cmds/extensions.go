@@ -25,6 +25,7 @@ func GetPhoneExtensionsCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreatePhoneExtensionCommand(root),
 		GetDeletePhoneExtensionCommand(root),
+		GetUpdateInboundNumberCommand(root),
 	)
 
 	return cmd
@@ -33,11 +34,12 @@ func GetPhoneExtensionsCommand(root *cli.Root) *cobra.Command {
 func GetCreatePhoneExtensionCommand(root *cli.Root) *cobra.Command {
 	var (
 		eligibleForOverwrite bool
+		internalQueue        bool
 	)
 
 	cmd := &cobra.Command{
 		Use:     "create [extensions] [display-name] [flags]",
-		Aliases: []string{"new", "register", "update"},
+		Aliases: []string{"new", "register"},
 		Args:    cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			req := &pbx3cxv1.RegisterPhoneExtensionRequest{
@@ -45,6 +47,7 @@ func GetCreatePhoneExtensionCommand(root *cli.Root) *cobra.Command {
 					Extension:            args[0],
 					DisplayName:          args[1],
 					EligibleForOverwrite: eligibleForOverwrite,
+					InternalQueue:        internalQueue,
 				},
 			}
 
@@ -58,10 +61,68 @@ func GetCreatePhoneExtensionCommand(root *cli.Root) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&eligibleForOverwrite, "eligible-for-overwrite", "o", false, "Whether or not this extension is eligible for on-call overwrites")
+	cmd.Flags().BoolVarP(&internalQueue, "internal-queue", "i", false, "Wether or not this phone extension is an internal queue")
 
 	return cmd
 }
 
+func GetUpdatePhoneExtensionCommand(root *cli.Root) *cobra.Command {
+	var (
+		eligibleForOverwrite bool
+		internalQueue        bool
+		extension            string
+		displayName          string
+	)
+
+	cmd := &cobra.Command{
+		Use:  "update [extensions] [flags]",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			req := &pbx3cxv1.UpdatePhoneExtensionRequest{
+				Extension: args[0],
+				PhoneExtension: &pbx3cxv1.PhoneExtension{
+					Extension:            extension,
+					DisplayName:          displayName,
+					EligibleForOverwrite: eligibleForOverwrite,
+					InternalQueue:        internalQueue,
+				},
+			}
+
+			var paths []string
+			if cmd.Flag("extension").Changed {
+				paths = append(paths, "extension")
+			}
+
+			if cmd.Flag("display-name").Changed {
+				paths = append(paths, "display_name")
+			}
+
+			if cmd.Flag("internal-queue").Changed {
+				paths = append(paths, "internal_queue")
+			}
+
+			if cmd.Flag("eligible-for-overwrite").Changed {
+				paths = append(paths, "eligible_for_overwrite")
+			}
+
+			res, err := root.CallService().UpdatePhoneExtension(root.Context(), connect.NewRequest(req))
+			if err != nil {
+				logrus.Fatal(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
+	}
+
+	f := cmd.Flags()
+
+	f.BoolVarP(&eligibleForOverwrite, "eligible-for-overwrite", "o", false, "Whether or not this extension is eligible for on-call overwrites")
+	f.BoolVarP(&internalQueue, "internal-queue", "i", false, "Wether or not this phone extension is an internal queue")
+	f.StringVarP(&extension, "extension", "e", "", "The new extension value")
+	f.StringVarP(&displayName, "display-name", "d", "", "The new display name")
+
+	return cmd
+}
 func GetDeletePhoneExtensionCommand(root *cli.Root) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "delete [extension]",

@@ -55,9 +55,13 @@ func (svc *CallService) UpdatePhoneExtension(ctx context.Context, req *connect.R
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("phone extension does not exist"))
 	}
 
-	paths := []string{"extension", "display_name", "eligible_for_overwrite"}
+	paths := []string{"extension", "display_name", "eligible_for_overwrite", "internal_queue"}
 	if fm := req.Msg.GetUpdateMask().GetPaths(); len(fm) > 0 {
 		paths = fm
+	}
+
+	if req.Msg.PhoneExtension == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("phone_extension must not be nil"))
 	}
 
 	for _, p := range paths {
@@ -77,12 +81,15 @@ func (svc *CallService) UpdatePhoneExtension(ctx context.Context, req *connect.R
 		case "eligible_for_overwrite":
 			ext.EligibleForOverwrite = req.Msg.PhoneExtension.EligibleForOverwrite
 
+		case "internal_queue":
+			ext.InternalQueue = req.Msg.PhoneExtension.InternalQueue
+
 		default:
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid field name %q in update_mask", p))
 		}
 	}
 
-	if err := svc.Extensions.SavePhoneExtension(ctx, ext); err != nil {
+	if err := svc.Extensions.UpdatePhoneExtension(ctx, req.Msg.Extension, ext); err != nil {
 		return nil, err
 	}
 
