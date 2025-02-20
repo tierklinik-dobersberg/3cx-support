@@ -524,7 +524,7 @@ func (svc *CallService) updateCallLogStatus(ctx context.Context, logs []*pbx3cxv
 	// range over the call logs and mark any call that "ended" in an internal_queue
 	// extension as lost
 	for _, l := range logs {
-		if _, ok := internalQueues[l.AcceptedAgent]; ok {
+		if _, ok := internalQueues[l.AcceptedAgent]; ok && (l.Duration != nil || l.Duration.AsDuration() > 0) {
 			l.Status = pbx3cxv1.CallStatus_CALL_STATUS_MISSED
 			l.CallType = "MISSED"
 		}
