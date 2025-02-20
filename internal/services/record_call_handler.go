@@ -112,6 +112,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		TransferFrom:   transferFrom,
 		CallID:         callID,
 		Direction:      "Inbound",
+		CallType:       "Inbound",
 	}
 
 	if isError != "" {
@@ -172,7 +173,6 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 				CallEntry: record.ToProto(),
 			}, false)
 		}
-
 	}()
 
 	w.WriteHeader(http.StatusNoContent)
