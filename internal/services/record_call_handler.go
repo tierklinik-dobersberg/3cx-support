@@ -212,6 +212,8 @@ func (svc *CallService) SearchCallLogs(ctx context.Context, req *connect.Request
 		return nil, err
 	}
 
+	svc.updateCallLogStatus(ctx, results)
+
 	return connect.NewResponse(&pbx3cxv1.SearchCallLogsResponse{
 		Results:   results,
 		Customers: customers,

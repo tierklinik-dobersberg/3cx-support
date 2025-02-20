@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	"github.com/tierklinik-dobersberg/apis/pkg/cli"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 func GetPhoneExtensionsCommand(root *cli.Root) *cobra.Command {
@@ -25,7 +26,7 @@ func GetPhoneExtensionsCommand(root *cli.Root) *cobra.Command {
 	cmd.AddCommand(
 		GetCreatePhoneExtensionCommand(root),
 		GetDeletePhoneExtensionCommand(root),
-		GetUpdateInboundNumberCommand(root),
+		GetUpdatePhoneExtensionCommand(root),
 	)
 
 	return cmd
@@ -103,6 +104,10 @@ func GetUpdatePhoneExtensionCommand(root *cli.Root) *cobra.Command {
 
 			if cmd.Flag("eligible-for-overwrite").Changed {
 				paths = append(paths, "eligible_for_overwrite")
+			}
+
+			req.UpdateMask = &fieldmaskpb.FieldMask{
+				Paths: paths,
 			}
 
 			res, err := root.CallService().UpdatePhoneExtension(root.Context(), connect.NewRequest(req))
