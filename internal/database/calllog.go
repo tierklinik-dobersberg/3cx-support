@@ -205,6 +205,9 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record str
 	filter := bson.M{
 		"datestr": record.DateStr,
 		"caller":  record.Caller,
+		"durationSeconds": bson.M{
+			"$exists": false,
+		},
 	}
 	log.Infof("searching for %+v", filter)
 	cursor, err := db.callRecords.Find(ctx, filter, opts)
