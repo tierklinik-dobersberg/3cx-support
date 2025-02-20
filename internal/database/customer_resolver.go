@@ -16,6 +16,10 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+// CustomerResolver provides the ability to resolve customer records from the
+// tkd/customer-service by evaluating a SearchQuery on call-logs. It aggregates
+// a distinct set of customer IDs and then fetches the customer records from the
+// service.
 type CustomerResolver struct {
 	db  Database
 	cli customerv1connect.CustomerServiceClient

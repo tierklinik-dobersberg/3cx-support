@@ -123,6 +123,8 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		}
 	}
 
+	// we create the record in the background so 3cx does not need to wait for our DB transaction to
+	// complete.
 	go func() {
 		ctx := context.Background()
 
@@ -164,7 +166,13 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 			log.L(ctx).Errorf("failed to create unidentified call-log entry: %s", err)
 		} else {
 			log.L(ctx).Infof("successfully created unidentified call log entry: %#v", record)
+
+			// Publish the call record received event
+			svc.Providers.PublishEvent(&pbx3cxv1.CallRecordReceived{
+				CallEntry: record.ToProto(),
+			}, false)
 		}
+
 	}()
 
 	w.WriteHeader(http.StatusNoContent)
