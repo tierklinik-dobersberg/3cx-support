@@ -83,7 +83,7 @@ func (svc *CallService) RecordCall(ctx context.Context, req *connect.Request[pbx
 	record.Date = date
 	record.AgentUserId = svc.GetUserIdForAgent(ctx, record.Agent)
 
-	if err := svc.CallLogDB.RecordCustomerCall(ctx, record); err != nil {
+	if err := svc.CallLogDB.RecordCustomerCall(ctx, &record); err != nil {
 		return nil, err
 	}
 
@@ -163,7 +163,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 			log.L(ctx).Infof("unspecified caller, not searching for records: %q", record.Caller)
 		}
 
-		if err := svc.CallLogDB.CreateUnidentified(ctx, record); err != nil {
+		if err := svc.CallLogDB.CreateUnidentified(ctx, &record); err != nil {
 			log.L(ctx).Errorf("failed to create unidentified call-log entry: %s", err)
 		} else {
 			log.L(ctx).Infof("successfully created unidentified call log entry: %#v", record)

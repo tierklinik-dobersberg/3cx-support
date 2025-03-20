@@ -19,12 +19,12 @@ import (
 type Database interface {
 	// CreateUnidentified creates new "unidentified" calllog record where
 	// we don't know the caller.
-	CreateUnidentified(ctx context.Context, log structs.CallLog) error
+	CreateUnidentified(ctx context.Context, log *structs.CallLog) error
 
 	// RecordCustomerCall records a call that has been associated with a customer.
 	// When called, RecordCustomerCall searches for an "unidentified" calllog that
 	// was recorded at the same time and replaces that entry.
-	RecordCustomerCall(ctx context.Context, record structs.CallLog) error
+	RecordCustomerCall(ctx context.Context, record *structs.CallLog) error
 
 	// Search searches for all records that match query.
 	Search(ctx context.Context, query *SearchQuery) ([]structs.CallLog, error)
@@ -121,18 +121,22 @@ L:
 	return results, errors.ErrorOrNil()
 }
 
-func (db *callRecordDatabase) CreateUnidentified(ctx context.Context, record structs.CallLog) error {
+func (db *callRecordDatabase) CreateUnidentified(ctx context.Context, record *structs.CallLog) error {
 	if record.ID.IsZero() {
 		record.ID = primitive.NewObjectID()
 	}
 
-	if err := db.perpareRecord(ctx, &record); err != nil {
+	if err := db.perpareRecord(ctx, record); err != nil {
 		return err
 	}
 
-	_, err := db.callRecords.InsertOne(ctx, record)
+	res, err := db.callRecords.InsertOne(ctx, record)
 	if err != nil {
 		return fmt.Errorf("failed to insert document: %w", err)
+	}
+
+	if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
+		record.ID = oid
 	}
 
 	return nil
@@ -188,13 +192,13 @@ func (db *callRecordDatabase) FindDistinctNumbersWithoutCustomers(ctx context.Co
 	return result, nil
 }
 
-func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record structs.CallLog) error {
+func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *structs.CallLog) error {
 	if record.ID.IsZero() {
 		record.ID = primitive.NewObjectID()
 	}
 
 	log := log.L(ctx)
-	if err := db.perpareRecord(ctx, &record); err != nil {
+	if err := db.perpareRecord(ctx, record); err != nil {
 		return err
 	}
 
@@ -260,9 +264,13 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record str
 
 		log.Infof("replaced unidentified calllog for %s with customer-record for %s:%s: %v", record.Caller, record.CustomerSource, record.CustomerID, record)
 	} else {
-		_, err := db.callRecords.InsertOne(ctx, record)
+		res, err := db.callRecords.InsertOne(ctx, record)
 		if err != nil {
 			return fmt.Errorf("failed to insert document: %w", err)
+		}
+
+		if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
+			res.InsertedID = oid
 		}
 
 		log.Infof("created new customer-record for %s:%s with phone number %s", record.CustomerSource, record.CustomerID, record.Caller)
