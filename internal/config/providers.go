@@ -90,6 +90,7 @@ func NewProviders(ctx context.Context, cfg Config) (*Providers, error) {
 		Notify:          idmv1connect.NewNotifyServiceClient(httpClient, cfg.IdmURL),
 		Roles:           idmv1connect.NewRoleServiceClient(httpClient, cfg.IdmURL),
 		Customer:        customerv1connect.NewCustomerServiceClient(cli.NewInsecureHttp2Client(), cfg.CustomerServiceURL),
+		Events:          eventsv1connect.NewEventServiceClient(cli.NewInsecureHttp2Client(), cfg.EventsServiceURL),
 		Config:          cfg,
 		CallLogDB:       callogDB,
 		OverwriteDB:     overwriteDB,
