@@ -2,8 +2,6 @@ module github.com/tierklinik-dobersberg/3cx-support
 
 go 1.23.8
 
-toolchain go1.23.8
-
 require (
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/bufbuild/protovalidate-go v0.9.2
