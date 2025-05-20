@@ -11,7 +11,6 @@ import (
 	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
 	rosterv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/roster/v1"
-	"github.com/tierklinik-dobersberg/apis/pkg/cli"
 	"github.com/tierklinik-dobersberg/apis/pkg/events"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,7 +27,7 @@ type OnCallCache struct {
 
 func NewOnCallCache(ctx context.Context, inboundNumber string, providers *config.Providers) (*OnCallCache, error) {
 	// setup the event listener
-	eventClient := events.NewClient(providers.Config.EventsServiceURL, cli.NewInsecureHttp2Client())
+	eventClient := events.NewClient(events.DiscoveredInsecureClient(nil))
 
 	cache := &OnCallCache{
 		providers:     providers,

@@ -26,7 +26,6 @@ type Config struct {
 	FailoverTransferTarget     string   `env:"FAILOVER_TRANSFER_TARGET" json:"failoverTransferTarget"`
 	DefaultOnCallInboundNumber string   `env:"DEFAULT_INBOUND_NUMBER" json:"defaultInboundNumber"`
 	VoiceMailStoragePath       string   `env:"STORAGE_PATH" json:"storagePath"`
-	EventsServiceURL           string   `env:"EVENTS_SERVICE_URL" json:"eventsServiceUrl"`
 	NotificationSenderId       string   `env:"NOTIFICATION_SENDER_ID" json:"notificationSenderId"`
 }
 
@@ -87,10 +86,6 @@ func LoadConfig(ctx context.Context, path string) (*Config, error) {
 
 	if cfg.VoiceMailStoragePath == "" {
 		return nil, fmt.Errorf("missing voice-mail storage path")
-	}
-
-	if cfg.EventsServiceURL == "" {
-		return nil, fmt.Errorf("missing events-service URL")
 	}
 
 	return &cfg, nil
