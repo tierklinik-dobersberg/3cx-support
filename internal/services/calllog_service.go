@@ -194,7 +194,7 @@ func (svc *CallService) CreateOverwrite(ctx context.Context, req *connect.Reques
 			model.From.In(time.Local).Format(time.RFC3339),
 			model.To.In(time.Local).Format(time.RFC3339),
 		)); err != nil {
-			log.L(context.Background()).Errorf("failed to send overwrite creation notice: %s", err)
+			log.L(context.Background()).Error("failed to send overwrite creation notice", "error", err)
 		}
 	}()
 
@@ -407,12 +407,12 @@ func (svc *CallService) handleOnCallError(ctx context.Context, err error) (*conn
 		// Send an error notifcation to all admin users.
 		go svc.sendErrorNotification(context.Background(), remoteUser.ID, err)
 	} else {
-		log.L(ctx).Errorf("failed to get remote user from context")
+		log.L(ctx).Error("failed to get remote user from context")
 	}
 
 	// return the fail-over transfer target if one is specified.
 	if ft := svc.Config.FailoverTransferTarget; ft != "" {
-		log.L(ctx).Errorf("failed to get on-call response, returning failover target %q: %s", ft, err)
+		log.L(ctx).Error("failed to get on-call response, returning failover target", "failoverTarget", ft, "error", err)
 
 		return connect.NewResponse(&pbx3cxv1.GetOnCallResponse{
 			PrimaryTransferTarget: ft,
@@ -443,7 +443,7 @@ func (svc *CallService) sendNotificationToAdmins(ctx context.Context, remoteUser
 	// prepare a slice of target user ids
 	ids := make([]string, 0, len(users.Msg.Users))
 	for _, usr := range users.Msg.Users {
-		log.L(ctx).Debugf("sending overwrite creation notice to %q (%s)", usr.GetUser().GetUsername(), usr.GetUser().GetId())
+		log.L(ctx).Debug("sending overwrite creation notice", "targetUserName", usr.GetUser().GetUsername(), "targetUserId", usr.GetUser().GetId())
 
 		ids = append(ids, usr.GetUser().GetId())
 	}
@@ -468,7 +468,7 @@ func (svc *CallService) sendNotificationToAdmins(ctx context.Context, remoteUser
 		if delivery.ErrorKind != idmv1.ErrorKind_ERROR_KIND_UNSPECIFIED {
 			countFailed++
 
-			log.L(ctx).Errorf("failed to send error notification to user %q: (%s) %s", delivery.TargetUser, delivery.ErrorKind.String(), delivery.Error)
+			log.L(ctx).Error("failed to send error notification", "targetUserId", delivery.TargetUser, "errorKind", delivery.ErrorKind.String(), "error", delivery.Error)
 		}
 	}
 
@@ -487,7 +487,7 @@ func (svc *CallService) sendErrorNotification(ctx context.Context, remoteUserId 
 		err := svc.sendNotificationToAdmins(ctx, remoteUserId, fmt.Sprintf("failed to get on-call target: %s", onCallError))
 
 		if err != nil {
-			log.L(ctx).Errorf("failed to send error notification: %s", err)
+			log.L(ctx).Error("failed to send error notification", "error", err)
 
 			go svc.resetErrorNotification()
 		}
@@ -509,7 +509,7 @@ func (svc *CallService) updateCallLogStatus(ctx context.Context, logs []*pbx3cxv
 	// fetch all known phone extensions
 	extensions, err := svc.Extensions.ListPhoneExtensions(ctx)
 	if err != nil {
-		slog.Error("failed to load phone-extensions", "error", err)
+		log.L(ctx).Error("failed to load phone-extensions", "error", err)
 		return
 	}
 

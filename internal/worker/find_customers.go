@@ -21,24 +21,26 @@ func StartFindCustomerWorker(ctx context.Context, providers *config.Providers) {
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 
+			l := log.L(ctx)
+
 			func() {
 				defer cancel()
 				res, err := providers.CallLogDB.FindDistinctNumbersWithoutCustomers(ctx)
 				if err != nil {
-					log.L(ctx).Errorf("failed to find distinct, unidentified numbers: %s", err)
+					l.Error("failed to find distinct, unidentified numbers", "error", err)
 					return
 				}
 
 				res2, err := providers.MailboxDatabase.FindDistinctNumbersWithoutCustomers(ctx)
 				if err != nil {
-					log.L(ctx).Errorf("failed to find distinct, unidentified numbers in voicemails: %s", err)
+					l.Error("failed to find distinct, unidentified numbers in voicemails", "error", err)
 				}
 
 				res = append(res, res2...)
 				sort.Stable(sort.StringSlice(res))
 				slices.Compact(res)
 
-				log.L(ctx).Infof("found %d distinct numbers that are not associated with a customer record", len(res))
+				l.Info("found distinct numbers that are not associated with a customer record", "count", len(res))
 
 				queries := make([]*customerv1.CustomerQuery, len(res))
 
@@ -54,18 +56,18 @@ func StartFindCustomerWorker(ctx context.Context, providers *config.Providers) {
 					Queries: queries,
 				}))
 				if err != nil {
-					log.L(ctx).Errorf("failed to search for customers: %s", err)
+					l.Error("failed to search for customers", "error", err)
 				} else {
-					log.L(ctx).Infof("found %d customers for unmatched numbers", len(queryResult.Msg.Results))
+					l.Info("found customers for unmatched numbers", "count", len(queryResult.Msg.Results))
 
 					for _, c := range queryResult.Msg.Results {
 						for _, number := range c.Customer.PhoneNumbers {
 							if err := providers.CallLogDB.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
-								log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+								l.Error("failed to update unmatched customers", "customerId", c.Customer.Id, "phoneNumber", number, "error", err.Error())
 							}
 
 							if err := providers.MailboxDatabase.UpdateUnmatchedNumber(ctx, number, c.Customer.Id); err != nil {
-								log.L(ctx).Errorf("failed to update unmatched customers for %s (phone=%q): %s", c.Customer.Id, number, err.Error())
+								l.Error("failed to update unmatched customers", "customerId", c.Customer.Id, "phoneNumber", number, "error", err.Error())
 							}
 						}
 					}

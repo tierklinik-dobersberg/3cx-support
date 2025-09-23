@@ -120,7 +120,7 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 		if err == nil {
 			record.Error = parsedBool
 		} else {
-			log.L(req.Context()).Errorf("failed to parse error parameter %v: %s", isError, err)
+			log.L(req.Context()).Error("failed to parse error parameter", "isError", isError, "error", err)
 		}
 	}
 
@@ -129,9 +129,11 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 	go func() {
 		ctx := context.Background()
 
+		l := log.L(ctx).With("caller", record.Caller)
+
 		// try to search the customer record
 		if strings.ToLower(record.Caller) != "anonymous" {
-			log.L(ctx).Infof("trying to get customer for number %s", record.Caller)
+			l.Debug("trying to get customer for number")
 
 			res, err := svc.Customer.SearchCustomer(ctx, connect.NewRequest(&customerv1.SearchCustomerRequest{
 				Queries: []*customerv1.CustomerQuery{
@@ -144,29 +146,29 @@ func (svc *CallService) RecordCallHandler(w http.ResponseWriter, req *http.Reque
 			}))
 
 			if err != nil {
-				log.L(ctx).Errorf("failed to search customer records for phone number %q: %s", record.Caller, err)
+				l.Error("failed to search customer records for phone number", "error", err)
 			} else {
 				if len(res.Msg.Results) > 0 {
 					customer := res.Msg.Results[0].Customer
 
-					log.L(ctx).Infof("identified caller: %s %s (%s)", customer.FirstName, customer.LastName, customer.Id)
+					l.Debug("identified caller", "firstName", customer.FirstName, "lastName", customer.LastName, "customerId", customer.Id)
 					record.CustomerID = customer.Id
 
 					if len(res.Msg.Results) > 1 {
-						log.L(ctx).Warnf("found multiple customer records for caller number %q, using first one", record.Caller)
+						l.Warn("found multiple customer records for caller number, using first one")
 					}
 				} else {
-					log.L(ctx).Errorf("failed to find customer record for phone number %q", record.Caller)
+					l.Error("failed to find customer record for phone number")
 				}
 			}
 		} else {
-			log.L(ctx).Infof("unspecified caller, not searching for records: %q", record.Caller)
+			l.Info("unspecified caller, not searching for records")
 		}
 
 		if err := svc.CallLogDB.CreateUnidentified(ctx, &record); err != nil {
-			log.L(ctx).Errorf("failed to create unidentified call-log entry: %s", err)
+			l.Error("failed to create unidentified call-log entry", "error", err)
 		} else {
-			log.L(ctx).Infof("successfully created unidentified call log entry: %#v", record)
+			l.Info("successfully created unidentified call log entry", "record", record)
 
 			// Publish the call record received event
 			svc.Providers.PublishEvent(&pbx3cxv1.CallRecordReceived{

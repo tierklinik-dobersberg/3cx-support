@@ -768,6 +768,7 @@ github.com/sebest/xff v0.0.0-20210106013422-671bd2870b3a h1:iLcLb5Fwwz7g/DLK89F+
 github.com/sebest/xff v0.0.0-20210106013422-671bd2870b3a/go.mod h1:wozgYq9WEBQBaIJe4YZ0qTSFAMxmcwBhQH0fO0R34Z0=
 github.com/sethvargo/go-envconfig v1.1.1 h1:JDu8Q9baIzJf47NPkzhIB6aLYL0vQ+pPypoYrejS9QY=
 github.com/sethvargo/go-envconfig v1.1.1/go.mod h1:JLd0KFWQYzyENqnEPWWZ49i4vzZo/6nRidxI8YvGiHw=
+github.com/sethvargo/go-envconfig v1.3.0/go.mod h1:JLd0KFWQYzyENqnEPWWZ49i4vzZo/6nRidxI8YvGiHw=
 github.com/shirou/gopsutil/v3 v3.24.5 h1:i0t8kL+kQTvpAYToeuiVk3TgDeKOFioZO3Ztz/iZ9pI=
 github.com/shirou/gopsutil/v3 v3.24.5/go.mod h1:bsoOS1aStSs9ErQ1WWfxllSeS1K5D+U30r2NfcubMVk=
 github.com/shoenig/go-m1cpu v0.1.6 h1:nxdKQNcEB6vzgA2E2bvzKIYRuNj7XNJ4S/aRSwKzFtM=
@@ -813,6 +814,8 @@ github.com/testcontainers/testcontainers-go v0.35.0 h1:uADsZpTKFAtp8SLK+hMwSaa+X
 github.com/testcontainers/testcontainers-go v0.35.0/go.mod h1:oEVBj5zrfJTrgjwONs1SsRbnBtH9OKl+IGl3UMcr2B4=
 github.com/tierklinik-dobersberg/apis v0.48.3-0.20250520150347-27da4d573a87 h1:690wDjvabS5CSj/ogq4EIgx/fszA5rADtkeA5gyoI00=
 github.com/tierklinik-dobersberg/apis v0.48.3-0.20250520150347-27da4d573a87/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
+github.com/tierklinik-dobersberg/apis v0.51.2 h1:DX8/nBwceNaRjZEWxYqlPpjQZLoHcOPODfzCYlhBgK8=
+github.com/tierklinik-dobersberg/apis v0.51.2/go.mod h1:opg0vQfXGiip7T9PL0M7Z/qj852n+0GpQpjaKYQByWg=
 github.com/tierklinik-dobersberg/logger v0.2.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=
 github.com/tierklinik-dobersberg/logger v0.4.0 h1:uD7lFkkTDeqOngjF7ybSUbuk6MFgwNSajwBAZJaEMVw=
 github.com/tierklinik-dobersberg/logger v0.4.0/go.mod h1:5xiqHfUncsmSw5X/nkWI39Xw1GP3Km3CDNPq5lU68HE=

@@ -88,7 +88,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 							cr.customers[record.CustomerID] = nil
 							cr.customerLock.Unlock()
 
-							log.L(ctx).Debugf("sending customer query for %s/%s", record.CustomerSource, record.CustomerID)
+							log.L(ctx).Debug("sending customer query", "customerSource", record.CustomerSource, "customerId", record.CustomerID)
 
 							if record.CustomerSource == "" {
 								if err := stream.Send(&customerv1.SearchCustomerRequest{
@@ -122,7 +122,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 							return nil, nil
 						})
 						if err != nil {
-							log.L(ctx).Errorf("failed to send customer lookup query: %s", err)
+							log.L(ctx).Error("failed to send customer lookup query", "customerSource", record.CustomerSource, "customerId", record.CustomerID, "error", err)
 
 							cancel()
 						}
@@ -141,7 +141,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		}
 
 		if err := stream.CloseRequest(); err != nil {
-			log.L(ctx).Errorf("failed to close request side of stream: %s", err)
+			log.L(ctx).Error("failed to close request side of stream", "error", err)
 		} else {
 			log.L(ctx).Debug("send side closed succesfully")
 		}
@@ -151,7 +151,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		msg, err := stream.Receive()
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				log.L(ctx).Errorf("failed to receive message: %s", err)
+				log.L(ctx).Error("failed to receive message from stream", "error", err)
 			}
 
 			break
@@ -164,7 +164,7 @@ func (cr *CustomerResolver) Query(ctx context.Context, query *SearchQuery) ([]*p
 		cr.customerLock.Unlock()
 
 		for _, c := range msg.Results {
-			log.L(ctx).Debugf("received customer response %s %s (%s)", c.Customer.FirstName, c.Customer.LastName, c.Customer.Id)
+			log.L(ctx).Debug("received customer lookup response", "firstName", c.Customer.FirstName, "lastName", c.Customer.LastName, "customerId", c.Customer.Id)
 		}
 	}
 

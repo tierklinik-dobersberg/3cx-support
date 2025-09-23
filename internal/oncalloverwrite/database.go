@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"go.mongodb.org/mongo-driver/bson"
@@ -152,13 +151,13 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		InboundNumber: inboundNumber,
 	}
 
-	log := log.L(ctx).WithFields(logrus.Fields{
-		"from":          from,
-		"to":            to,
-		"user":          user,
-		"phone":         phone,
-		"inboundNumber": inboundNumber,
-	})
+	log := log.L(ctx).With(
+		"from", from,
+		"to", to,
+		"user", user,
+		"phone", phone,
+		"inboundNumber", inboundNumber,
+	)
 
 	if res, err := db.overwrites.InsertOne(ctx, overwrite); err == nil {
 		overwrite.ID = res.InsertedID.(primitive.ObjectID)
@@ -171,12 +170,12 @@ func (db *database) CreateOverwrite(ctx context.Context, creatorId string, from,
 		target = "user:" + overwrite.UserID
 	}
 
-	log.WithFields(logrus.Fields{
-		"from":      overwrite.From,
-		"to":        overwrite.To,
-		"target":    target,
-		"createdBy": creatorId,
-	}).Infof("created new roster overwrite")
+	log.With(
+		"from", overwrite.From,
+		"to", overwrite.To,
+		"target", target,
+		"createdBy", creatorId,
+	).Info("created new roster overwrite")
 
 	return overwrite, nil
 }

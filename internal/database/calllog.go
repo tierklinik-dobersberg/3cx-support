@@ -162,7 +162,7 @@ func (db *callRecordDatabase) UpdateUnmatchedNumber(ctx context.Context, number 
 		return fmt.Errorf("failed to update customers: %w", err)
 	}
 
-	log.L(ctx).Infof("updated %d customer entries", res.ModifiedCount)
+	log.L(ctx).Info("unmatched customer entries updated successfully", "updateCount", res.ModifiedCount)
 
 	return nil
 }
@@ -213,7 +213,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 			"$exists": false,
 		},
 	}
-	log.Infof("searching for %+v", filter)
+
 	cursor, err := db.callRecords.Find(ctx, filter, opts)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve documents: %w", err)
@@ -228,7 +228,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 
 	for cursor.Next(ctx) {
 		if err := cursor.Decode(&existing); err != nil {
-			log.Errorf("failed to decode existing calllog record: %s", err)
+			log.Error("failed to decode existing calllog record", "error", err)
 
 			continue
 		}
@@ -241,7 +241,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 	}
 	// we only log error here and still create the record.
 	if cursor.Err() != nil {
-		log.Errorf("failed to search for unidentified calllog record: %s", cursor.Err())
+		log.Error("failed to search for unidentified calllog records", "error", cursor.Err())
 	}
 
 	if found {
@@ -262,7 +262,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 			return fmt.Errorf("failed to find and replace document %s: %w", record.ID, result.Err())
 		}
 
-		log.Infof("replaced unidentified calllog for %s with customer-record for %s:%s: %v", record.Caller, record.CustomerSource, record.CustomerID, record)
+		log.Info("replaced unidentified calllog customer-record", "caller", record.Caller, "customerSource", record.CustomerSource, "customerId", record.CustomerID, "record", record)
 	} else {
 		res, err := db.callRecords.InsertOne(ctx, record)
 		if err != nil {
@@ -273,7 +273,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 			res.InsertedID = oid
 		}
 
-		log.Infof("created new customer-record for %s:%s with phone number %s", record.CustomerSource, record.CustomerID, record.Caller)
+		log.Info("created new customer-record", "customerSource", record.CustomerSource, "customerId", record.CustomerID, "caller", record.Caller)
 	}
 
 	return nil
@@ -305,7 +305,7 @@ func (db *callRecordDatabase) StreamSearch(ctx context.Context, query *SearchQue
 	errs := make(chan error, 1)
 
 	filter := query.Build()
-	log.L(ctx).Infof("Searching callogs for %+v", filter)
+	log.L(ctx).Debug("searching for call-log records", "filter", filter)
 
 	opts := options.Find().SetSort(bson.M{"date": -1})
 	cursor, err := db.callRecords.Find(ctx, filter, opts)
@@ -338,7 +338,7 @@ func (db *callRecordDatabase) perpareRecord(ctx context.Context, record *structs
 	if record.Caller != "Anonymous" {
 		parsed, err := phonenumbers.Parse(record.Caller, db.country)
 		if err != nil {
-			log.L(ctx).Errorf("failed to parse caller phone number %s: %s", record.Caller, err)
+			log.L(ctx).Error("failed to parse caller phone number", "caller", record.Caller, "error", err)
 			return err
 		}
 		formattedNumber = phonenumbers.Format(parsed, phonenumbers.INTERNATIONAL)

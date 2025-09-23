@@ -144,7 +144,7 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 		var err error
 		inboundNumberModel, err = svc.OverwriteDB.GetInboundNumber(ctx, inboundNumber)
 		if err != nil {
-			log.L(ctx).Errorf("failed to get inbound number model for %q, using default: %s", inboundNumber, err)
+			log.L(ctx).Error("failed to get inbound number model, using default", "inboundNumber", inboundNumber, "error", err)
 		}
 	}
 
@@ -163,7 +163,7 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 		return nil, fmt.Errorf("roster: failed to get working staff from RosterService: %w", err)
 	}
 
-	log.L(ctx).Infof("received response for RosterService.GetWorkingStaff: userIds=%#v rosterIds=%#v", workingStaff.Msg.UserIds, workingStaff.Msg.RosterId)
+	log.L(ctx).Debug("received response for RosterService.GetWorkingStaff", "userIds", workingStaff.Msg.UserIds, "rosterIds", workingStaff.Msg.RosterId)
 
 	if len(workingStaff.Msg.UserIds) == 0 {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no roster defined for %s", dateTime))
@@ -180,7 +180,7 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 
 		profile, err := svc.FetchUserProfile(ctx, userId)
 		if err != nil {
-			log.L(ctx).Errorf("failed to fetch user with id %q: %s", userId, err)
+			log.L(ctx).Error("failed to fetch user", "userId", userId, "error", err)
 
 			continue
 		}
@@ -204,7 +204,7 @@ func (svc *Providers) ResolveOnCallTarget(ctx context.Context, dateTime time.Tim
 				Until:          timestamppb.New(until),
 			})
 		} else {
-			log.L(ctx).Warnf("user %q (id=%q) marked as on-call but no transfer target available", profile.User.Username, userId)
+			log.L(ctx).Warn("user marked as on-call but no transfer target available", "username", profile.User.Username, "userIds", userId)
 		}
 	}
 
