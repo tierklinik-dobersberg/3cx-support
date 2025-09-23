@@ -55,6 +55,7 @@ require (
 	github.com/sloonz/go-qprintable v0.0.0-20210417175225-715103f9e6eb // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/suyashkumar/dicom v1.0.8-0.20250523201510-4c45b44e60ab // indirect
 	github.com/tierklinik-dobersberg/logger v0.4.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
