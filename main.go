@@ -116,7 +116,7 @@ func main() {
 	}
 
 	if err := discovery.Register(ctx, catalog, &discovery.ServiceInstance{
-		Name:    wellknown.Pbx3cxV1ServiceScope,
+		Name:    string(wellknown.Pbx3cxV1ServiceScope),
 		Address: cfg.ListenAddress,
 	}); err != nil {
 		logrus.Fatalf("failed to register call-service at service catalog: %s", err)
