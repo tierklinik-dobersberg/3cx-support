@@ -220,7 +220,7 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 	}
 	defer cursor.Close(ctx)
 
-	// we accept any records that happened +- 2 minutes
+	// we accept any records that happened +/- 2 minutes
 	lower := record.Date.Add(-2 * time.Minute)
 	upper := record.Date.Add(+2 * time.Minute)
 	var found bool

@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ghodss/yaml"
 	"github.com/sethvargo/go-envconfig"
@@ -28,6 +30,9 @@ type Config struct {
 	VoiceMailStoragePath       string   `env:"STORAGE_PATH" json:"storagePath"`
 	EventsServiceURL           string   `env:"EVENTS_SERVICE_URL" json:"eventsServiceUrl"`
 	NotificationSenderId       string   `env:"NOTIFICATION_SENDER_ID" json:"notificationSenderId"`
+
+	CDRMode string `env:"CDR_MODE, default=OFF" json:"cdrMode"` // ACTIVE, PASSIVE, OFF (default)
+	CDRAddr string `env:"CDR_ADDR" json:"cdrAddr"`              // either bind socket (CDR_MODE=ACTIVE) or addr to connect to (CDR_MODE=PASSIVE)
 }
 
 func LoadConfig(ctx context.Context, path string) (*Config, error) {
@@ -91,6 +96,26 @@ func LoadConfig(ctx context.Context, path string) (*Config, error) {
 
 	if cfg.EventsServiceURL == "" {
 		return nil, fmt.Errorf("missing events-service URL")
+	}
+
+	// validate CDR settings
+	switch strings.ToLower(cfg.CDRMode) {
+	case "active": // ACTIVE Socket mode in 3cx means they will connect, we can use a default here
+		if cfg.CDRAddr == "" {
+			slog.Info("CDR configured in 3CX ACTIVE mode, using default listen-address :3031")
+			cfg.CDRAddr = ":3031"
+		}
+
+	case "passive": // PASSIVE Socket mode in 3cx means they are listening so we __need__ an address
+		if cfg.CDRAddr == "" {
+			return nil, fmt.Errorf("missing CDR_ADDR if CDR_MODE != OFF")
+		}
+		slog.Info("CDR configured in 3CX PASSIVE mode, connecting to " + cfg.CDRAddr)
+
+	case "", "off":
+		slog.Info("CDR disabled")
+	default:
+		return nil, fmt.Errorf("invalid setting for CDR_MODE, allowed values are ACTIVE, PASSIVE and OFF (default)")
 	}
 
 	return &cfg, nil

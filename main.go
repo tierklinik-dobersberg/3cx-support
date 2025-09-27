@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/sirupsen/logrus"
+	"github.com/tierklinik-dobersberg/3cx-support/internal/cdr"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/services"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/voicemail"
@@ -135,6 +138,25 @@ func main() {
 
 	// Start notification worker for voicemails
 	worker.StartNotificationWorker(ctx, mng, providers)
+
+	// start the CDR server if CDR_MODE is not OFF
+	if strings.ToLower(cfg.CDRMode) != "off" {
+		p := cdr.NewProcessor(nil, providers.CallLogDB)
+
+		var srv cdr.Server
+		switch strings.ToLower(cfg.CDRMode) {
+		case "active":
+			srv = cdr.NewListeningServer(cfg.CDRAddr, p, slog.Default())
+		case "passive":
+			err = fmt.Errorf("3CX CDR in PASSIVE mode is not yet supported")
+		}
+
+		if srv != nil {
+			if err := srv.Start(ctx); err != nil {
+				logrus.Fatalf("failed to start CDR server: %s", err)
+			}
+		}
+	}
 
 	if err := server.Serve(ctx, srv); err != nil {
 		logrus.Fatalf("failed to serve: %s", err)
