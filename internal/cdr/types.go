@@ -101,9 +101,11 @@ type Record struct {
 	FinalType   Type   `json:"final-type"`
 	FinalNumber string `json:"final-number"`
 
+	FromDN     string `json:"from-dn"`
 	FromType   Type   `json:"from-type"`
 	FromNumber string `json:"from-no"`
 
+	ToDN     string `json:"to-dn"`
 	ToType   Type   `json:"to-type"`
 	ToNumber string `json:"to-no"`
 }

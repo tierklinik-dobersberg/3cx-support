@@ -89,7 +89,7 @@ func (p *ProcessorImpl) callLogFromRecord(ctx context.Context, r Record) (struct
 		cr.Caller = r.FromNumber
 		cr.Direction = "Inbound"
 		cr.InboundNumber = r.DialNumber
-		cr.Agent = r.FinalNumber
+		cr.Agent = strings.TrimPrefix(r.FinalNumber, "Ext.")
 
 		if r.Answered() {
 			cr.CallType = "Inbound"
@@ -99,7 +99,7 @@ func (p *ProcessorImpl) callLogFromRecord(ctx context.Context, r Record) (struct
 	} else {
 		cr.Caller = r.DialNumber
 		cr.Direction = "Outbound"
-		cr.Agent = r.FromNumber
+		cr.Agent = strings.TrimPrefix(r.FromNumber, "Ext.")
 
 		if r.Answered() {
 			cr.CallType = "Outbound"
