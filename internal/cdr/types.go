@@ -138,7 +138,7 @@ func CreateRecordFromCSV(columns []string, order []Field, log *slog.Logger) (Rec
 	for idx, v := range columns {
 		field := order[idx]
 
-		l = log.With(field, v)
+		l = log.With(string(field), v)
 
 		switch field {
 		case FieldHistoryID:
