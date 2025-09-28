@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
+	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 // Processor is capable of processing a CSV style call-data-record (CDR).
@@ -23,21 +25,27 @@ type UserAgentResolver interface {
 	GetUserIdForAgent(ctx context.Context, agent string) string
 }
 
+type EventPublisher interface {
+	PublishEvent(proto.Message, bool)
+}
+
 // ProcessorImpl implements the Processor interface using a given
 // CSV field ordering and a call recorder.
 type ProcessorImpl struct {
 	order        []Field
 	recorder     CallRecorder
 	userResolver UserAgentResolver
+	publisher    EventPublisher
 }
 
 // NewProcessor creates and returns a new CDR CSV processor using the provided
 // fieldOrder and the call recorder.
-func NewProcessor(fieldOrder []Field, recorder CallRecorder, userResolver UserAgentResolver) *ProcessorImpl {
+func NewProcessor(fieldOrder []Field, recorder CallRecorder, userResolver UserAgentResolver, publisher EventPublisher) *ProcessorImpl {
 	return &ProcessorImpl{
 		order:        fieldOrder,
 		recorder:     recorder,
 		userResolver: userResolver,
+		publisher:    publisher,
 	}
 }
 
@@ -57,7 +65,13 @@ func (p *ProcessorImpl) Process(ctx context.Context, line []string, log *slog.Lo
 
 	if err := p.recorder.RecordCustomerCall(context.Background(), &cr); err != nil {
 		log.Error("failed to process call-data-record", "error", err, "data", strings.Join(line, ","))
+		return
 	}
+
+	p.publisher.PublishEvent(&pbx3cxv1.CallRecordReceived{
+		CallEntry: cr.ToProto(),
+	}, false)
+
 }
 
 func (p *ProcessorImpl) callLogFromRecord(ctx context.Context, r Record) (structs.CallLog, error) {

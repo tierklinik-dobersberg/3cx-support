@@ -141,7 +141,7 @@ func main() {
 
 	// start the CDR server if CDR_MODE is not OFF
 	if strings.ToLower(cfg.CDRMode) != "off" {
-		p := cdr.NewProcessor(nil, providers.CallLogDB, providers)
+		p := cdr.NewProcessor(nil, providers.CallLogDB, providers, providers)
 
 		var srv cdr.Server
 		switch strings.ToLower(cfg.CDRMode) {
