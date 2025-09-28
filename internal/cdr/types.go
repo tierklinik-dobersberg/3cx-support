@@ -5,21 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
 )
 
 type Server interface {
 	Start(context.Context) error
 }
-
-type Type string
-
-const (
-	TypeQueue        Type = "queue"
-	TypeExtension    Type = "extension"
-	TypeScript       Type = "script"
-	TypeExternalLine Type = "external_line"
-	TypeIVR          Type = "ivr"
-)
 
 type TerminationReason string
 
@@ -98,16 +90,16 @@ type Record struct {
 
 	DialNumber string `json:"dial-no"`
 
-	FinalType   Type   `json:"final-type"`
-	FinalNumber string `json:"final-number"`
+	FinalType   structs.Type `json:"final-type"`
+	FinalNumber string       `json:"final-number"`
 
-	FromDN     string `json:"from-dn"`
-	FromType   Type   `json:"from-type"`
-	FromNumber string `json:"from-no"`
+	FromDN     string       `json:"from-dn"`
+	FromType   structs.Type `json:"from-type"`
+	FromNumber string       `json:"from-no"`
 
-	ToDN     string `json:"to-dn"`
-	ToType   Type   `json:"to-type"`
-	ToNumber string `json:"to-no"`
+	ToDN     string       `json:"to-dn"`
+	ToType   structs.Type `json:"to-type"`
+	ToNumber string       `json:"to-no"`
 }
 
 func parseTime(t string) (time.Time, error) {
@@ -187,19 +179,19 @@ func CreateRecordFromCSV(columns []string, order []Field, log *slog.Logger) (Rec
 			r.DialNumber = v
 
 		case FieldFinalType:
-			r.FinalType = Type(v)
+			r.FinalType = structs.Type(v)
 
 		case FieldFinalNumber:
 			r.FinalNumber = v
 
 		case FieldToType:
-			r.ToType = Type(v)
+			r.ToType = structs.Type(v)
 
 		case FieldToNumber:
 			r.ToNumber = v
 
 		case FieldFromType:
-			r.FromType = Type(v)
+			r.FromType = structs.Type(v)
 
 		case FieldFromNumber:
 			r.FromNumber = v
@@ -216,7 +208,7 @@ func CreateRecordFromCSV(columns []string, order []Field, log *slog.Logger) (Rec
 
 // Inbound returns true if this call record is an inbound call.
 func (r Record) Inbound() bool {
-	return r.FromType != TypeExtension
+	return r.FromType != structs.TypeExtension
 }
 
 // Outbound returns true if this call record is an outbound call.
@@ -231,7 +223,7 @@ func (r Record) Outbound() bool {
 func (r Record) Answered() bool {
 	// if the final inbound type is a queue the call was not answered.
 	if r.Inbound() {
-		return r.FinalType != TypeQueue
+		return r.FinalType != structs.TypeQueue
 	}
 
 	// otherwise, we need to rely on the time-answered field.

@@ -1,6 +1,7 @@
 package structs
 
 import (
+	"strings"
 	"time"
 
 	pbx3cxv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/pbx3cx/v1"
@@ -37,8 +38,8 @@ type CallLog struct {
 	// The exact error is unknown and should be investigated by an administrator.
 	Error bool `json:"error,omitempty" bson:"error,omitempty"`
 
-	FromType string `json:"fromType" bson:"fromType,omitempty"`
-	ToType   string `json:"toType" bson:"toType,omitempty"`
+	FromType Type   `json:"fromType" bson:"fromType,omitempty"`
+	ToType   Type   `json:"toType" bson:"toType,omitempty"`
 	Chain    string `json:"chain" bson:"chain,omitempty"`
 
 	// TransferTarget is set to the destination of call transfer.
@@ -55,12 +56,19 @@ type CallLog struct {
 
 func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
 	var direction pbx3cxv1.CallDirection
+	var callerType pbx3cxv1.ParticipantType
+	var agentType pbx3cxv1.ParticipantType
+
 	switch log.Direction {
 	case "Inbound":
 		direction = pbx3cxv1.CallDirection_CALL_DIRECTION_INBOUND
+		callerType = log.FromType.ToProto()
+		agentType = log.ToType.ToProto()
 
 	case "Outbound":
 		direction = pbx3cxv1.CallDirection_CALL_DIRECTION_OUTBOUND
+		callerType = log.ToType.ToProto()
+		agentType = log.FromType.ToProto()
 	}
 
 	var status pbx3cxv1.CallStatus
@@ -73,6 +81,14 @@ func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
 		status = pbx3cxv1.CallStatus_CALL_STATUS_MISSED
 	case "Notanswered":
 		status = pbx3cxv1.CallStatus_CALL_STATUS_NOTANSWERED
+	}
+
+	var chain []string
+	if log.Chain != "" {
+		chain = strings.Split(
+			strings.TrimPrefix(log.Chain, "Chain: "),
+			";",
+		)
 	}
 
 	return &pbx3cxv1.CallEntry{
@@ -91,5 +107,8 @@ func (log CallLog) ToProto() *pbx3cxv1.CallEntry {
 		QueueExtension: log.QueueExtension,
 		Direction:      direction,
 		Status:         status,
+		AgentType:      agentType,
+		CallerType:     callerType,
+		CallChain:      chain,
 	}
 }

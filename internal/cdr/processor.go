@@ -81,8 +81,8 @@ func (p *ProcessorImpl) callLogFromRecord(ctx context.Context, r Record) (struct
 	cr.Date = r.TimeReceived
 	cr.CallID = r.CallID
 	cr.DurationSeconds = uint64(math.Floor(r.Duration.Seconds()))
-	cr.FromType = string(r.FromType)
-	cr.ToType = string(r.FinalType)
+	cr.FromType = r.FromType
+	cr.ToType = r.FinalType
 	cr.Chain = r.Chain
 
 	if r.Inbound() {
