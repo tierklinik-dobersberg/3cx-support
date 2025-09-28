@@ -43,7 +43,7 @@ func NewProcessor(fieldOrder []Field, recorder CallRecorder, userResolver UserAg
 
 // Process implements Processor and handles an incoming CDR CSV row.
 func (p *ProcessorImpl) Process(ctx context.Context, line []string, log *slog.Logger) {
-	record, err := CreateRecordFromCSV(line, p.order)
+	record, err := CreateRecordFromCSV(line, p.order, log)
 	if err != nil {
 		log.Error("failed to convert call-data-record", "error", err, "data", strings.Join(line, ","))
 		return

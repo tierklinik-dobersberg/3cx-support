@@ -344,19 +344,30 @@ func (db *callRecordDatabase) StreamSearch(ctx context.Context, query *SearchQue
 }
 
 func (db *callRecordDatabase) perpareRecord(ctx context.Context, record *structs.CallLog) error {
-	var formattedNumber string
+	formattedNumber := record.Caller
+
 	if record.Caller != "Anonymous" {
-		parsed, err := phonenumbers.Parse(record.Caller, db.country)
-		if err != nil {
-			log.L(ctx).Error("failed to parse caller phone number", "caller", record.Caller, "error", err)
-			return err
+		var callerType string
+		if record.Direction == "Inbound" {
+			callerType = record.ToType
+		} else {
+			callerType = record.FromType
 		}
-		formattedNumber = phonenumbers.Format(parsed, phonenumbers.INTERNATIONAL)
+
+		if callerType != "extension" {
+			parsed, err := phonenumbers.Parse(record.Caller, db.country)
+			if err != nil {
+				log.L(ctx).Error("failed to parse caller phone number", "caller", record.Caller, "error", err)
+				return err
+			}
+			formattedNumber = phonenumbers.Format(parsed, phonenumbers.INTERNATIONAL)
+		}
 	} else {
 		formattedNumber = "anonymous"
 	}
 
 	record.Caller = formattedNumber
 	record.DateStr = record.Date.Format("2006-01-02")
+
 	return nil
 }

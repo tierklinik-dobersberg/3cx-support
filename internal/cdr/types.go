@@ -3,6 +3,7 @@ package cdr
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -117,7 +118,7 @@ func parseTime(t string) (time.Time, error) {
 
 // CreateRecordFromCSV creates a new Record from it's CSV representation. order defines the CSV field order.
 // If order is nil, defaultFieldOrder will be used
-func CreateRecordFromCSV(columns []string, order []Field) (Record, error) {
+func CreateRecordFromCSV(columns []string, order []Field, log *slog.Logger) (Record, error) {
 	// default to the defaultFieldOrder if no order is specified.
 	if order == nil {
 		order = defaultFieldOrder
@@ -129,11 +130,15 @@ func CreateRecordFromCSV(columns []string, order []Field) (Record, error) {
 		return Record{}, fmt.Errorf("column and configuration order mismatch: column-count=%d expected-count=%d", len(columns), len(order))
 	}
 
+	l := log
+
 	// construct the Record by iterating over the columns and setting the respective field
 	// in the Record struct based on the field-order as specified in "order".
 	var r Record
 	for idx, v := range columns {
 		field := order[idx]
+
+		l = log.With(field, v)
 
 		switch field {
 		case FieldHistoryID:
@@ -201,6 +206,8 @@ func CreateRecordFromCSV(columns []string, order []Field) (Record, error) {
 			// Field not needed for call-data-records
 		}
 	}
+
+	l.Info("successfully converted CDR record")
 
 	return r, nil
 }
