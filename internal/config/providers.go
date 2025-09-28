@@ -315,3 +315,33 @@ func (svc *Providers) PublishEvent(event proto.Message, retained bool) {
 		}
 	}()
 }
+
+func (svc *Providers) GetUserIdForAgent(ctx context.Context, agent string) string {
+	profiles, err := svc.Users.ListUsers(ctx, connect.NewRequest(&idmv1.ListUsersRequest{
+		FieldMask: &fieldmaskpb.FieldMask{
+			Paths: []string{"profiles.user.avatar"},
+		},
+		ExcludeFields: true,
+	}))
+	if err != nil {
+		logrus.Errorf("failed to fetch users from idm service: %s", err)
+	}
+
+	for _, p := range profiles.Msg.Users {
+		if agent == p.User.GetPrimaryPhoneNumber().GetNumber() {
+			return p.User.Id
+		}
+
+		if extra := p.User.GetExtra().GetFields(); extra != nil {
+			if agent == extra["phoneExtension"].GetStringValue() {
+				return p.User.Id
+			}
+
+			if agent == extra["emergencyExtension"].GetStringValue() {
+				return p.User.Id
+			}
+		}
+	}
+
+	return ""
+}

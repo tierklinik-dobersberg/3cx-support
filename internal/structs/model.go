@@ -36,9 +36,13 @@ type CallLog struct {
 	// Error might be set to true if an error occurred during transfer of the call.
 	// The exact error is unknown and should be investigated by an administrator.
 	Error bool `json:"error,omitempty" bson:"error,omitempty"`
+
+	FromType string `json:"fromType" bson:"fromType,omitempty"`
+	ToType   string `json:"toType" bson:"toType,omitempty"`
+	Chain    string `json:"chain" bson:"chain,omitempty"`
+
 	// TransferTarget is set to the destination of call transfer.
 	TransferTarget string `json:"transferTarget,omitempty" bson:"transferTarget,omitempty"`
-
 	// TransferFrom is the transfering phone extension
 	TransferFrom string `json:"transferFrom,omitempty" bson:"transferFrom,omitempty"`
 

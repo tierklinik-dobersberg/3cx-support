@@ -27,8 +27,8 @@ func NewListeningServer(addr string, p Processor, logger *slog.Logger) *Listenin
 	return l
 }
 
-func (l *ListeningServer) Start(ctx context.Context) error {
-	listener, err := net.Listen("tcp", l.addr)
+func (lis *ListeningServer) Start(ctx context.Context) error {
+	listener, err := net.Listen("tcp", lis.addr)
 	if err != nil {
 		return err
 	}
@@ -36,36 +36,36 @@ func (l *ListeningServer) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		if err := listener.Close(); err != nil {
-			l.l.Error("failed to close listener", "error", err)
+			lis.l.Error("failed to close listener", "error", err)
 		}
 	}()
 
-	l.wg.Add(1)
+	lis.wg.Add(1)
 	go func() {
-		defer l.wg.Done()
+		defer lis.wg.Done()
 
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				l.l.Error("failed to accept connection", "error", err)
+				lis.l.Error("failed to accept connection", "error", err)
 				return
 			}
 
-			l.wg.Add(1)
-			go l.handleConnection(ctx, conn)
+			lis.wg.Add(1)
+			go lis.handleConnection(ctx, conn)
 		}
 	}()
 
 	return nil
 }
 
-func (l *ListeningServer) handleConnection(ctx context.Context, conn net.Conn) {
-	defer l.wg.Done()
+func (lis *ListeningServer) handleConnection(ctx context.Context, conn net.Conn) {
+	defer lis.wg.Done()
 
 	reader := bufio.NewReader(conn)
 	csvReader := csv.NewReader(reader)
 
-	log := l.l.With("peer", conn.RemoteAddr().String())
+	log := lis.l.With("peer", conn.RemoteAddr().String())
 
 	for {
 		line, err := csvReader.Read()
@@ -74,6 +74,6 @@ func (l *ListeningServer) handleConnection(ctx context.Context, conn net.Conn) {
 			return
 		}
 
-		l.processor.Process(ctx, line, log)
+		lis.processor.Process(ctx, line, log)
 	}
 }

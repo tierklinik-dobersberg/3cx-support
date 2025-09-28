@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/sirupsen/logrus"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/config"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/database"
 	"github.com/tierklinik-dobersberg/3cx-support/internal/structs"
@@ -369,36 +368,6 @@ func (svc *CallService) GetLogsForCustomer(ctx context.Context, req *connect.Req
 	svc.updateCallLogStatus(ctx, res.Results)
 
 	return connect.NewResponse(res), nil
-}
-
-func (svc *CallService) GetUserIdForAgent(ctx context.Context, agent string) string {
-	profiles, err := svc.Users.ListUsers(ctx, connect.NewRequest(&idmv1.ListUsersRequest{
-		FieldMask: &fieldmaskpb.FieldMask{
-			Paths: []string{"profiles.user.avatar"},
-		},
-		ExcludeFields: true,
-	}))
-	if err != nil {
-		logrus.Errorf("failed to fetch users from idm service: %s", err)
-	}
-
-	for _, p := range profiles.Msg.Users {
-		if agent == p.User.GetPrimaryPhoneNumber().GetNumber() {
-			return p.User.Id
-		}
-
-		if extra := p.User.GetExtra().GetFields(); extra != nil {
-			if agent == extra["phoneExtension"].GetStringValue() {
-				return p.User.Id
-			}
-
-			if agent == extra["emergencyExtension"].GetStringValue() {
-				return p.User.Id
-			}
-		}
-	}
-
-	return ""
 }
 
 func (svc *CallService) handleOnCallError(ctx context.Context, err error) (*connect.Response[pbx3cxv1.GetOnCallResponse], error) {

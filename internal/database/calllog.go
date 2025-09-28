@@ -247,14 +247,24 @@ func (db *callRecordDatabase) RecordCustomerCall(ctx context.Context, record *st
 	if found {
 		// copy existing values to the new record
 		record.ID = existing.ID
-		record.InboundNumber = existing.InboundNumber
 		record.TransferTarget = existing.TransferTarget
 		record.Error = existing.Error
 		record.TransferFrom = existing.TransferFrom
 		record.CallID = existing.CallID
 
+		if record.InboundNumber == "" {
+			record.InboundNumber = existing.InboundNumber
+		}
+
 		if record.CustomerID == "" {
 			record.CustomerID = existing.CustomerID
+		}
+
+		if record.FromType == "" {
+			record.FromType = existing.FromType
+		}
+		if record.ToType == "" {
+			record.ToType = existing.ToType
 		}
 
 		result := db.callRecords.FindOneAndReplace(ctx, bson.M{"_id": record.ID}, record)
